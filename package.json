@@ -1,0 +1,17 @@
+{
+  "name": "claude-code-vscode-patches",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Unofficial, reproducible patches and VSIX builds for Claude Code for VS Code.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check-upstream": "node scripts/check-upstream.mjs",
+    "test": "node --test",
+    "update-installed": "node scripts/update-installed.mjs",
+    "verify": "node scripts/verify-patch.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

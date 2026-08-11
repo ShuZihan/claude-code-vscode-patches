@@ -1,0 +1,1071 @@
+/* Codex-like responsive conversation layout with room for the navigation rail. */
+:root {
+  --claude-codex-content-width: 864px;
+  --claude-codex-inline-gutter: max(16px, calc((100% - var(--claude-codex-content-width)) / 2));
+  --claude-codex-rail-safe-gutter: max(44px, var(--claude-codex-inline-gutter));
+  --claude-codex-weight-medium: 500;
+  --claude-codex-weight-semibold: 600;
+  --claude-codex-weight-bold: 700;
+  --claude-codex-function-color: #dcdcaa;
+}
+
+.vscode-light,
+.vscode-high-contrast-light {
+  --claude-codex-function-color: #795e26;
+}
+
+.messagesContainer_07S1Yg,
+.messagesContainer_07S1Yg.stickyMode_07S1Yg {
+  padding-left: var(--claude-codex-rail-safe-gutter) !important;
+  padding-right: var(--claude-codex-inline-gutter) !important;
+}
+
+.inputContainer_07S1Yg {
+  left: var(--claude-codex-rail-safe-gutter) !important;
+  right: var(--claude-codex-inline-gutter) !important;
+}
+
+/* Codex-like typography hierarchy for elements that differ from the vendor defaults. */
+.toolNameText_ZUQaOA,
+.collapsibleToolCallsHeader_-a3Vgw span {
+  font-weight: var(--claude-codex-weight-medium);
+}
+
+/* codex-copy-markdown v1: subtle action at the end of each completed response. */
+.codexCopyMarkdownButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 4px 0 0;
+  padding: 0;
+  color: var(--app-secondary-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 100ms ease,
+    visibility 0s linear 100ms;
+}
+
+[data-testid="assistant-message"]:is(:hover, :focus-within)
+  > .codexCopyMarkdownButton,
+[data-testid="user-message"]:is(:hover, :focus-within)
+  > .codexCopyMarkdownButton,
+.codexTableCopyHost:is(:hover, :focus-within) .codexTableCopyButton {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 0.55;
+  transition-delay: 0s;
+}
+
+.codexCopyMarkdownButton:hover {
+  color: var(--app-primary-foreground);
+  background: var(--app-ghost-button-hover-background);
+  opacity: 1;
+}
+
+.codexCopyMarkdownButton:focus-visible {
+  visibility: visible;
+  pointer-events: auto;
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* Unified fenced code blocks: keep the background on the block, not line fragments. */
+.codeBlockWrapper_-a7MRw pre {
+  background-color: var(--vscode-textCodeBlock-background, var(--app-secondary-background));
+  cursor: text;
+}
+
+.root_-a7MRw pre code {
+  display: block;
+  background: transparent !important;
+  border-radius: 0;
+  word-break: normal;
+}
+
+/* Monaco standalone omits the editor's semantic function-name layer. */
+.root_-a7MRw pre code .codexSemanticFunction {
+  color: var(--claude-codex-function-color) !important;
+}
+
+/* Use an opaque selection fill so overlapping Chromium line fragments do not brighten. */
+.root_-a7MRw pre code::selection {
+  background-color: rgb(86 122 161);
+}
+
+/* Codex-style user-message navigation rail. */
+.codexMessageRail {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  z-index: 21;
+  transform: translateY(-50%);
+}
+
+.codexMessageRail[hidden] {
+  display: none;
+}
+
+.codexMessageRailList {
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.codexMessageRailList::-webkit-scrollbar {
+  display: none;
+}
+
+.codexMessageRailList.codexMessageRailListOverflowing {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 40px,
+    black calc(100% - 40px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 40px,
+    black calc(100% - 40px),
+    transparent
+  );
+}
+
+.codexMessageRailButton {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  width: 36px;
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+  cursor: pointer;
+}
+
+.codexMessageRailMarker {
+  --marker-progress: 0;
+  display: block;
+  width: 26px;
+  height: 2px;
+  background-color: var(--app-secondary-foreground);
+  border-radius: 1px;
+  opacity: 0.4;
+  transform: scaleX(calc(0.2308 + 0.7692 * var(--marker-progress)));
+  transform-origin: left center;
+  transition: transform 160ms
+    linear(0, 0.398 10%, 0.682 20%, 0.843 30%, 0.925 40%, 0.972 50%, 1.004 60%, 1.008 70%, 1.003 80%, 1);
+}
+
+.codexMessageRailButton[aria-current="true"] .codexMessageRailMarker {
+  background-color: var(--app-primary-foreground);
+  opacity: 0.6;
+}
+
+:is(
+    .codexMessageRailButton:has(
+        + .codexMessageRailButton[data-scrub-target]
+      ),
+    .codexMessageRailButton[data-scrub-target]
+      + .codexMessageRailButton
+  )
+  .codexMessageRailMarker {
+  --marker-progress: 0.7;
+}
+
+:is(
+    .codexMessageRailButton:has(
+        + .codexMessageRailButton
+          + .codexMessageRailButton[data-scrub-target]
+      ),
+    .codexMessageRailButton[data-scrub-target]
+      + .codexMessageRailButton
+      + .codexMessageRailButton
+  )
+  .codexMessageRailMarker {
+  --marker-progress: 0.4;
+}
+
+:is(
+    .codexMessageRailButton:has(
+        + .codexMessageRailButton
+          + .codexMessageRailButton
+          + .codexMessageRailButton[data-scrub-target]
+      ),
+    .codexMessageRailButton[data-scrub-target]
+      + .codexMessageRailButton
+      + .codexMessageRailButton
+      + .codexMessageRailButton
+  )
+  .codexMessageRailMarker {
+  --marker-progress: 0.2;
+}
+
+:is(
+    .codexMessageRailButton:focus-visible,
+    .codexMessageRailButton[data-scrub-target]
+  )
+  .codexMessageRailMarker {
+  --marker-progress: 1;
+  background-color: var(--app-primary-foreground);
+  opacity: 1;
+}
+
+.codexMessageRailList[data-scrubbing] .codexMessageRailMarker {
+  transition-duration: 0s;
+}
+
+.codexMessageRailList[data-scrubbing]
+  .codexMessageRailButton[aria-current="true"]:not([data-scrub-target])
+  .codexMessageRailMarker {
+  background-color: var(--app-secondary-foreground);
+  opacity: 0.4;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .codexMessageRailList:not([data-scrubbing]):hover
+    .codexMessageRailButton[aria-current="true"]:not(:hover):not(
+      :focus-visible
+    )
+    .codexMessageRailMarker {
+    background-color: var(--app-secondary-foreground);
+    opacity: 0.4;
+  }
+}
+
+.codexMessageRailTooltip {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 320px;
+  padding: 8px;
+  overflow: hidden;
+  color: var(--app-primary-foreground);
+  font-family: var(--vscode-chat-font-family);
+  font-size: var(--vscode-chat-font-size, 13px);
+  line-height: 1.5;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  background: color-mix(
+    in srgb,
+    var(--app-menu-background, var(--app-primary-background)) 95%,
+    transparent
+  );
+  border: 0.5px solid var(--app-input-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 28%);
+  backdrop-filter: blur(8px);
+  transform: translateX(-4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    visibility 0s linear 120ms;
+}
+
+.codexMessageRailTooltip[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+
+.codexMessageRailTooltipTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--claude-codex-weight-semibold, 600);
+}
+
+.codexMessageRailTooltipPreview {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--app-secondary-foreground);
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.userMessage_07S1Yg.codexMessageRailFlash {
+  animation: codexMessageRailFlash 1400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes codexMessageRailFlash {
+  0%,
+  35% {
+    background-color: color-mix(
+      in srgb,
+      var(--app-primary-foreground) 14%,
+      var(--app-input-background)
+    );
+  }
+
+  100% {
+    background-color: var(--app-input-background);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .codexMessageRailMarker,
+  .codexMessageRailTooltip {
+    transition-duration: 0s;
+  }
+
+  .userMessage_07S1Yg.codexMessageRailFlash {
+    animation-duration: 0s;
+  }
+}
+
+@media (max-width: 260px) {
+  :root {
+    --claude-codex-inline-gutter: 16px;
+    --claude-codex-rail-safe-gutter: 16px;
+  }
+
+  .codexMessageRail {
+    display: none;
+  }
+}
+
+/* User questions now use the same Markdown renderer as assistant answers. */
+.userMessage_07S1Yg .root_-a7MRw > :last-child {
+  margin-bottom: 0;
+}
+
+/* Live Markdown preview for the plaintext composer. */
+.messageInputContainer_cKsPxg.codexComposerMarkdownActive
+  .mentionMirror_cKsPxg {
+  visibility: hidden;
+}
+
+.codexComposerMarkdownOverlay {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  min-height: 1.5em;
+  max-height: 200px;
+  padding: 10px 36px 10px 14px;
+  overflow: hidden;
+  color: var(--app-input-foreground);
+  font-family: inherit;
+  line-height: 1.5;
+  pointer-events: none;
+  user-select: none;
+}
+
+.inputContainer_cKsPxg[data-recording="true"]
+  .codexComposerMarkdownOverlay {
+  padding-right: 64px;
+}
+
+.codexComposerSourceRoot {
+  width: 100%;
+  min-height: 1.5em;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font: inherit;
+}
+
+.codexComposerLine {
+  position: relative;
+  display: block;
+  min-height: 1.5em;
+}
+
+.codexComposerLineMeasure,
+.codexComposerLinePreview {
+  display: block;
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font: inherit;
+}
+
+.codexComposerLineMeasure {
+  visibility: hidden;
+}
+
+.codexComposerLinePreview {
+  position: absolute;
+  inset: 0;
+}
+
+.codexComposerVisualHeading {
+  font-weight: var(--claude-codex-weight-bold, 700);
+}
+
+.codexComposerLinePreview :not(pre) > code {
+  padding: 0 2px;
+  font-family: var(--app-monospace-font-family);
+  font-size: 0.9em;
+  background: var(--vscode-textCodeBlock-background, var(--app-secondary-background));
+  border-radius: 2px;
+}
+
+.codexComposerCodeLine {
+  background: color-mix(
+    in srgb,
+    var(--vscode-textCodeBlock-background, var(--app-secondary-background)) 86%,
+    transparent
+  );
+}
+
+/* Prompt and assistant Markdown share the same compact list geometry. */
+.root_-a7MRw ul,
+.root_-a7MRw ol {
+  padding-inline-start: 1.5em;
+}
+
+/* Codex-like tables: subtle shell, no vertical grid, compact row separators. */
+.root_-a7MRw table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0;
+  overflow-x: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.root_-a7MRw table > thead,
+.root_-a7MRw table > tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.root_-a7MRw table th,
+.root_-a7MRw table td {
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  border: 0;
+}
+
+.root_-a7MRw table thead th {
+  color: var(--app-primary-foreground);
+  background: color-mix(
+    in srgb,
+    var(--app-secondary-foreground) 9%,
+    transparent
+  );
+  border-bottom: 0.5px solid var(--app-input-border);
+}
+
+.root_-a7MRw
+  table
+  tbody
+  tr:not(:last-child)
+  td {
+  border-bottom: 0.5px solid var(--app-input-border);
+}
+
+.root_-a7MRw table tbody tr:hover td {
+  background: color-mix(
+    in srgb,
+    var(--app-secondary-foreground) 5%,
+    transparent
+  );
+}
+
+/* Each table owns a copy action with the same reveal behavior as message copy. */
+.codexTableCopyCellHost {
+  position: relative;
+}
+
+.codexTableCopyButton {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 4px;
+  margin: 0;
+  background: color-mix(
+    in srgb,
+    var(--app-primary-background) 94%,
+    transparent
+  );
+  border: 0.5px solid var(--app-input-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+}
+
+.codexTableCopyButton:focus-visible {
+  color: var(--app-primary-foreground);
+  opacity: 1;
+  background: var(--app-ghost-button-hover-background);
+}
+
+.codexTableCopyButton[data-copied="true"] {
+  color: var(--app-success-foreground);
+}
+
+.codexTableCopyButton svg {
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+}
+
+.codexTableCopyButton rect {
+  fill: var(--app-primary-background);
+  stroke: currentColor;
+  stroke-width: 1.25;
+}
+
+/* Provider-agnostic balance/usage control in the composer footer. */
+.codexProviderUsageControl {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.codexProviderUsageButton {
+  appearance: none;
+  display: inline-flex;
+  box-sizing: border-box;
+  color: var(--app-secondary-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  height: 22px;
+  max-width: 170px;
+  padding: 2px 5px;
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.codexProviderUsageButton:hover,
+.codexProviderUsageButton:focus-visible,
+.codexProviderUsageControl[data-open="true"] .codexProviderUsageButton {
+  color: var(--app-primary-foreground);
+  background: var(--app-ghost-button-hover-background);
+}
+
+.codexProviderUsageButton:focus-visible,
+.codexProviderUsageRefresh:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--app-accent-color));
+  outline-offset: 1px;
+}
+
+.codexProviderUsageIcon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.codexProviderUsageButtonLabel {
+  display: inline-flex;
+  overflow: hidden;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.codexProviderUsageProvider {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.codexProviderUsageAmount {
+  color: var(--app-primary-foreground);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.codexProviderUsageButton[data-loading="true"]::after {
+  content: "";
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: codexProviderUsageSpin 0.8s linear infinite;
+}
+
+@keyframes codexProviderUsageSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.codexProviderUsagePopover {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  width: min(292px, calc(100vw - 20px));
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  color: var(--app-primary-foreground);
+  background: var(--app-menu-background);
+  border: 1px solid var(--app-menu-border, var(--app-input-border));
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+  font-size: var(--vscode-chat-font-size, 13px);
+  line-height: 1.4;
+}
+
+.codexProviderUsagePopover[hidden] {
+  display: none;
+}
+
+.codexProviderUsageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.codexProviderUsageHeading {
+  overflow: hidden;
+  min-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.codexProviderUsageRefresh {
+  appearance: none;
+  display: grid;
+  flex: 0 0 auto;
+  color: var(--app-secondary-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  place-items: center;
+}
+
+.codexProviderUsageRefresh:hover:not(:disabled) {
+  color: var(--app-primary-foreground);
+  background: var(--app-ghost-button-hover-background);
+}
+
+.codexProviderUsageRefresh:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.codexProviderUsageRefresh:disabled .codexProviderUsageRefreshIcon {
+  animation: codexProviderUsageSpin 0.8s linear infinite;
+}
+
+.codexProviderUsageRefreshIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.codexProviderUsageResource {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 0;
+  border-top: 0.5px solid var(--app-input-border);
+}
+
+.codexProviderUsageResource:first-of-type {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.codexProviderUsageCurrency {
+  color: var(--app-secondary-foreground);
+  margin-bottom: 1px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.codexProviderUsageRow {
+  display: flex;
+  color: var(--app-secondary-foreground);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.codexProviderUsageRowTotal {
+  color: var(--app-primary-foreground);
+}
+
+.codexProviderUsageValue {
+  color: var(--app-primary-foreground);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.codexProviderUsageNotice {
+  color: var(--app-warning-accent);
+  background: color-mix(in srgb, var(--app-warning-accent) 10%, transparent);
+  border-radius: 5px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  font-size: 0.9em;
+}
+
+.codexProviderUsageEmpty {
+  color: var(--app-secondary-foreground);
+  padding: 8px 2px 10px;
+}
+
+.codexProviderUsageMeta {
+  color: var(--app-secondary-foreground);
+  border-top: 0.5px solid var(--app-input-border);
+  margin-top: 3px;
+  padding-top: 7px;
+  font-size: 0.82em;
+}
+
+@media screen and (max-width: 520px) {
+  .codexProviderUsageProvider,
+  .codexProviderUsageSeparator {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 350px) {
+  .codexProviderUsageButtonLabel {
+    display: none;
+  }
+
+  .codexProviderUsageButton {
+    width: 22px;
+    padding-inline: 3px;
+  }
+
+  .codexProviderUsageButton[data-loading="true"]::after {
+    display: none;
+  }
+}
+
+/* Codex active-turn footer: zero-delay hover plan and code-change details. */
+.codexProgressTodoSource {
+  display: none !important;
+}
+
+.codexProgressStatusHost {
+  display: flex;
+  box-sizing: border-box;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  pointer-events: none;
+}
+
+.codexProgressStatusHost[hidden] {
+  display: none;
+}
+
+.codexProgressStatusShell {
+  position: relative;
+  z-index: 22;
+  display: inline-flex;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 6px 12px;
+  color: var(--app-secondary-foreground);
+  background: color-mix(
+    in srgb,
+    var(--app-input-background) 70%,
+    transparent
+  );
+  border: 0.5px solid color-mix(in srgb, var(--app-input-border) 80%, transparent);
+  border-radius: 999px;
+  align-items: center;
+  gap: 8px;
+  overflow: visible;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+}
+
+.codexProgressTriggerGroup,
+.codexProgressDiffTriggerHost {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.codexProgressDiffGroup {
+  gap: 8px;
+}
+
+.codexProgressTrigger {
+  appearance: none;
+  display: inline-flex;
+  min-width: 0;
+  margin: -6px 0;
+  padding: 6px 0;
+  color: var(--app-secondary-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--vscode-chat-font-size, 13px);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.codexProgressTrigger:hover {
+  color: var(--app-primary-foreground);
+}
+
+.codexProgressTrigger:focus-visible,
+.codexProgressDiffFile:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--app-accent-color));
+  outline-offset: 1px;
+}
+
+.codexProgressTriggerLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.codexProgressStatusIcon {
+  --codex-progress: 25%;
+  display: inline-grid;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--app-secondary-foreground);
+  border: 1.25px solid currentColor;
+  border-radius: 50%;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.codexProgressStatusIcon[data-status="completed"] {
+  color: color-mix(in srgb, var(--app-secondary-foreground) 70%, transparent);
+}
+
+.codexProgressStatusIcon[data-status="in_progress"] {
+  border: 0;
+  background: conic-gradient(
+    var(--vscode-focusBorder, var(--vscode-charts-blue, #3794ff))
+      var(--codex-progress),
+    color-mix(in srgb, var(--app-secondary-foreground) 32%, transparent) 0
+  );
+  -webkit-mask: radial-gradient(circle, transparent 48%, #000 51%);
+  mask: radial-gradient(circle, transparent 48%, #000 51%);
+}
+
+.codexProgressDiffStats {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(var(--vscode-chat-font-size, 13px) - 1px);
+  font-variant-numeric: tabular-nums;
+}
+
+.codexProgressAdditions {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+}
+
+.codexProgressDeletions {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
+}
+
+.codexProgressPopover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 1200;
+  box-sizing: border-box;
+  max-width: min(384px, calc(100vw - 16px));
+  max-height: min(288px, calc(100vh - 80px));
+  overflow: hidden;
+  color: var(--app-primary-foreground);
+  background: color-mix(
+    in srgb,
+    var(--app-menu-background, var(--app-primary-background)) 96%,
+    transparent
+  );
+  border: 0.5px solid var(--app-menu-border, var(--app-input-border));
+  border-radius: 12px;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 2px);
+  transition:
+    opacity 80ms ease,
+    transform 80ms ease,
+    visibility 0s linear 80ms;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 28%);
+  backdrop-filter: blur(10px);
+}
+
+.codexProgressTriggerGroup::before,
+.codexProgressDiffTriggerHost::before {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 8px;
+  content: "";
+}
+
+.codexProgressPlanGroup:hover > .codexProgressPopover,
+.codexProgressDiffTriggerHost:hover > .codexProgressPopover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+.codexProgressPlanPopover,
+.codexProgressDiffPopover {
+  width: min(320px, calc(100vw - 16px));
+}
+
+.codexProgressPlanList,
+.codexProgressDiffList {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  max-height: inherit;
+  margin: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.codexProgressPlanList {
+  gap: 8px;
+  padding: 8px;
+}
+
+.codexProgressPlanItem {
+  display: flex;
+  max-width: 320px;
+  min-width: 0;
+  color: var(--app-secondary-foreground);
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--vscode-chat-font-size, 13px);
+  line-height: 16px;
+}
+
+.codexProgressPlanItem[data-status="completed"] {
+  color: color-mix(in srgb, var(--app-secondary-foreground) 70%, transparent);
+}
+
+.codexProgressPlanText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.codexProgressDiffList {
+  gap: 2px;
+  padding: 4px;
+}
+
+.codexProgressDiffItem {
+  min-width: 0;
+}
+
+.codexProgressDiffFile {
+  appearance: none;
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 12px;
+  color: var(--app-primary-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font: inherit;
+  font-size: var(--vscode-chat-font-size, 13px);
+  text-align: left;
+}
+
+.codexProgressDiffFile:hover {
+  background: color-mix(
+    in srgb,
+    var(--app-list-hover-background) 60%,
+    transparent
+  );
+}
+
+.codexProgressDiffPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .codexProgressPopover {
+    transition-duration: 0s;
+  }
+}
+
+@media screen and (max-width: 420px) {
+  .codexProgressStatusShell {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .codexProgressDiffGroup {
+    gap: 6px;
+  }
+
+  .codexProgressTrigger {
+    gap: 4px;
+  }
+}

@@ -1,0 +1,7 @@
+.cache/
+.upstream-check-state/
+dist/
+node_modules/
+*.vsix
+*.log
+.DS_Store

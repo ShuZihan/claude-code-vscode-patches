@@ -1,0 +1,109 @@
+name: Check upstream and release
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: claude-code-upstream-release
+  cancel-in-progress: false
+
+jobs:
+  check-build-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out patch repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Restore the 48-hour check state
+        uses: actions/cache/restore@v6
+        with:
+          path: .upstream-check-state
+          key: upstream-check-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            upstream-check-${{ runner.os }}-
+
+      - name: Check the official Marketplace version
+        id: upstream
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            node scripts/check-upstream.mjs --force
+          else
+            node scripts/check-upstream.mjs
+          fi
+
+      - name: Save the new check state
+        if: steps.upstream.outputs.due == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .upstream-check-state
+          key: upstream-check-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Check whether this custom release exists
+        if: steps.upstream.outputs.due == 'true'
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.upstream.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "v${VERSION}-custom.1" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the patched VSIX
+        if: steps.upstream.outputs.due == 'true' && steps.release.outputs.exists == 'false'
+        id: build
+        env:
+          VERSION: ${{ steps.upstream.outputs.version }}
+          DOWNLOAD_URL: ${{ steps.upstream.outputs.download_url }}
+        run: >-
+          node scripts/build.mjs
+          --download-url "$DOWNLOAD_URL"
+          --version "$VERSION"
+
+      - name: Publish the custom release
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.build.outputs.version }}
+          ASSET_PATH: ${{ steps.build.outputs.asset_path }}
+        shell: bash
+        run: |
+          gh release create "v${VERSION}-custom.1" "$ASSET_PATH" \
+            --title "Claude Code ${VERSION} custom.1" \
+            --notes "Unofficial personal build generated from the official ${VERSION} darwin-arm64 VSIX."
+
+      - name: Open one adaptation issue when patching fails
+        if: failure() && steps.upstream.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.upstream.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          title="Patch adaptation required for Claude Code ${VERSION}"
+          count="$(gh issue list --state open --search "${title} in:title" --json number --jq 'length')"
+          if [[ "$count" == "0" ]]; then
+            gh issue create \
+              --title "$title" \
+              --body "The deterministic patch anchors did not all match Claude Code ${VERSION}. No VSIX was released. Inspect the failed workflow and adapt only the reported anchors: ${RUN_URL}"
+          fi
