@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.shuzihan.claude-code-vscode-patches</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Applications/Visual Studio Code.app/Contents/MacOS/Code</string>
+    <string>/Users/shuzihan/Library/Application Support/ClaudeCodeVSCodePatches/update-installed.mjs</string>
+    <string>--state-file</string>
+    <string>/Users/shuzihan/Library/Application Support/ClaudeCodeVSCodePatches/state.json</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ELECTRON_RUN_AS_NODE</key>
+    <string>1</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>172800</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/shuzihan/Library/Logs/ClaudeCodeVSCodePatches.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/shuzihan/Library/Logs/ClaudeCodeVSCodePatches.log</string>
+</dict>
+</plist>

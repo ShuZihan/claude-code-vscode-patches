@@ -1,10 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  compareNumericVersions,
   replaceExact,
   selectMarketplaceVersion,
   shouldQuery,
 } from "../scripts/lib.mjs";
+
+test("compareNumericVersions orders extension versions without downgrades", () => {
+  assert.equal(compareNumericVersions("2.1.226", "2.1.227"), -1);
+  assert.equal(compareNumericVersions("2.1.227", "2.1.227"), 0);
+  assert.equal(compareNumericVersions("2.2.0", "2.1.999"), 1);
+  assert.throws(() => compareNumericVersions("2.1", "2.1.227"), /invalid/);
+});
 
 test("replaceExact refuses missing and ambiguous patch anchors", () => {
   assert.equal(replaceExact("a-b", "-", "+", 1, "separator"), "a+b");

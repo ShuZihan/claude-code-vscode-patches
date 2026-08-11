@@ -69,6 +69,10 @@ For unattended updates, schedule that command locally after the repository is cl
 re-enable Marketplace auto-update for this extension, because it would replace the custom build
 with the official package.
 
+On this Mac, the included LaunchAgent template runs the updater once when loaded and then every
+172800 seconds (48 hours). It records the installed Release tag and asset digest, verifies the
+downloaded SHA-256 when GitHub provides one, and refuses to downgrade a newer installed version.
+
 Official references:
 
 - [Install from VSIX](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace#_install-from-a-vsix)

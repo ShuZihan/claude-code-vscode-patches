@@ -30,6 +30,21 @@ export function shouldQuery({
   return !Number.isFinite(previous) || now - previous >= intervalMs;
 }
 
+export function compareNumericVersions(left, right) {
+  const parse = (value) => {
+    const match = String(value).match(/^(\d+)\.(\d+)\.(\d+)$/);
+    if (!match) throw new Error(`invalid numeric version: ${value}`);
+    return match.slice(1).map(Number);
+  };
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] < rightParts[index]) return -1;
+    if (leftParts[index] > rightParts[index]) return 1;
+  }
+  return 0;
+}
+
 export function selectMarketplaceVersion(payload, targetPlatform) {
   const extension = payload?.results?.[0]?.extensions?.[0];
   if (!extension) throw new Error("Marketplace response contained no extension");

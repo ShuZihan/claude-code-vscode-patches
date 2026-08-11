@@ -1,8 +1,9 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { parseArgs } from "./lib.mjs";
+import { compareNumericVersions, parseArgs } from "./lib.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const repository = String(
@@ -15,6 +16,20 @@ const codeCli = String(
       : "code"),
 );
 const dryRun = args.get("dry-run") === true;
+const stateFile = path.resolve(
+  String(
+    args.get("state-file") ||
+      path.join(
+        os.homedir(),
+        "Library",
+        "Application Support",
+        "ClaudeCodeVSCodePatches",
+        "state.json",
+      ),
+  ),
+);
+const codeEnvironment = { ...process.env };
+delete codeEnvironment.ELECTRON_RUN_AS_NODE;
 
 function run(command, commandArgs, options = {}) {
   return execFileSync(command, commandArgs, {
@@ -38,17 +53,42 @@ const latestVersion = asset.name.match(
 )?.[1];
 if (!latestVersion) throw new Error(`cannot parse version from ${asset.name}`);
 
-const installedLine = run(codeCli, ["--list-extensions", "--show-versions"])
+const installedLine = run(
+  codeCli,
+  ["--list-extensions", "--show-versions"],
+  { env: codeEnvironment },
+)
   .split(/\r?\n/)
   .find((line) => line.toLowerCase().startsWith("anthropic.claude-code@"));
 const installedVersion = installedLine?.split("@").at(-1) || null;
-if (installedVersion === latestVersion) {
-  process.stdout.write(`Claude Code ${latestVersion} is already installed.\n`);
+let installedState = null;
+try {
+  installedState = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
+const stateMatches =
+  installedState?.tagName === release.tagName &&
+  installedState?.assetName === asset.name &&
+  installedState?.assetDigest === (asset.digest || null);
+if (installedVersion === latestVersion && stateMatches) {
+  process.stdout.write(
+    `Claude Code ${latestVersion} from ${release.tagName} is already installed.\n`,
+  );
+  process.exit(0);
+}
+if (
+  installedVersion &&
+  compareNumericVersions(installedVersion, latestVersion) > 0
+) {
+  process.stdout.write(
+    `Skipping ${latestVersion}; installed Claude Code ${installedVersion} is newer.\n`,
+  );
   process.exit(0);
 }
 if (dryRun) {
   process.stdout.write(
-    `Would install ${asset.name} over ${installedVersion || "no installed version"}.\n`,
+    `Would install ${asset.name} from ${release.tagName} over ${installedVersion || "no installed version"}.\n`,
   );
   process.exit(0);
 }
@@ -67,9 +107,37 @@ try {
     temporaryRoot,
   ]);
   const vsixPath = path.join(temporaryRoot, asset.name);
+  if (asset.digest?.startsWith("sha256:")) {
+    const actualDigest = `sha256:${createHash("sha256")
+      .update(fs.readFileSync(vsixPath))
+      .digest("hex")}`;
+    if (actualDigest !== asset.digest) {
+      throw new Error(
+        `release asset digest mismatch: expected ${asset.digest}, received ${actualDigest}`,
+      );
+    }
+  }
   execFileSync(codeCli, ["--install-extension", vsixPath, "--force"], {
     stdio: "inherit",
+    env: codeEnvironment,
   });
+  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+  const temporaryState = `${stateFile}.${process.pid}.tmp`;
+  fs.writeFileSync(
+    temporaryState,
+    `${JSON.stringify(
+      {
+        tagName: release.tagName,
+        assetName: asset.name,
+        assetDigest: asset.digest || null,
+        version: latestVersion,
+        installedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  fs.renameSync(temporaryState, stateFile);
   process.stdout.write(
     `Installed Claude Code ${latestVersion} from ${repository} Release ${release.tagName}.\n`,
   );
