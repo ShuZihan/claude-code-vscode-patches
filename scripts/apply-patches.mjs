@@ -14,6 +14,9 @@ if (!args.get("extension-root") || !fs.existsSync(extensionRoot)) {
 }
 
 const patchRoot = path.join(repositoryRoot, "patches");
+const patchManifest = JSON.parse(
+  fs.readFileSync(path.join(patchRoot, "manifest.json"), "utf8"),
+);
 const read = (relativePath) =>
   fs.readFileSync(path.join(extensionRoot, relativePath), "utf8");
 const write = (relativePath, value) =>
@@ -53,6 +56,51 @@ function patchPackageJson() {
   if (!Array.isArray(commands) || !Array.isArray(titleMenu)) {
     throw new Error("package.json: expected command and editor/title contributions");
   }
+  if (
+    packageJson.displayName !== "Claude Code for VS Code" ||
+    !String(packageJson.description).startsWith("Claude Code for VS Code:")
+  ) {
+    throw new Error("package.json: official display name or description changed");
+  }
+  packageJson.displayName = "Claude Code for VS Code (Custom)";
+  packageJson.description =
+    `Unofficial custom build custom.${patchManifest.customRevision}, based on Claude Code ${packageJson.version}. ${packageJson.description}`;
+  packageJson.claudeCodeCustomBuild = {
+    unofficial: true,
+    baseVersion: packageJson.version,
+    revision: patchManifest.customRevision,
+    repository: "ShuZihan/claude-code-vscode-patches",
+  };
+
+  const viewContainers = [
+    ...(packageJson.contributes?.viewsContainers?.activitybar || []),
+    ...(packageJson.contributes?.viewsContainers?.secondarySidebar || []),
+  ];
+  const titledContainers = viewContainers.filter(
+    (item) => item.title === "Claude Code",
+  );
+  if (titledContainers.length !== 3) {
+    throw new Error(
+      `package.json: expected 3 Claude Code view containers, found ${titledContainers.length}`,
+    );
+  }
+  for (const container of titledContainers) {
+    container.title = "Claude Code (Custom)";
+  }
+  const chatViews = [
+    ...(packageJson.contributes?.views?.["claude-sidebar"] || []),
+    ...(packageJson.contributes?.views?.["claude-sidebar-secondary"] || []),
+  ];
+  const namedChatViews = chatViews.filter((item) => item.name === "Claude Code");
+  if (namedChatViews.length !== 2) {
+    throw new Error(
+      `package.json: expected 2 named Claude Code views, found ${namedChatViews.length}`,
+    );
+  }
+  for (const view of namedChatViews) {
+    view.name = "Claude Code (Custom)";
+  }
+
   if (commands.some((item) => item.command === "claude-vscode.toggleRightEditorGroup")) {
     throw new Error("package.json: right editor group command is already present");
   }

@@ -1,8 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib.mjs";
 
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const patchManifest = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "patches/manifest.json"), "utf8"),
+);
 const args = parseArgs(process.argv.slice(2));
 const extensionRoot = path.resolve(String(args.get("extension-root") || ""));
 const expectedVersion = args.get("version");
@@ -42,6 +50,14 @@ if (expectedVersion && packageJson.version !== expectedVersion) {
   throw new Error(
     `expected extension ${expectedVersion}, found ${packageJson.version}`,
   );
+}
+if (
+  packageJson.displayName !== "Claude Code for VS Code (Custom)" ||
+  packageJson.claudeCodeCustomBuild?.unofficial !== true ||
+  packageJson.claudeCodeCustomBuild?.baseVersion !== packageJson.version ||
+  packageJson.claudeCodeCustomBuild?.revision !== patchManifest.customRevision
+) {
+  throw new Error("custom build identity is missing or inconsistent");
 }
 const command = packageJson.contributes?.commands?.filter(
   (item) => item.command === "claude-vscode.toggleRightEditorGroup",

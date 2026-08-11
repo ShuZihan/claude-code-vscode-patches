@@ -61,9 +61,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.upstream.outputs.version }}
+          CUSTOM_REVISION: ${{ steps.upstream.outputs.custom_revision }}
         shell: bash
         run: |
-          if gh release view "v${VERSION}-custom.1" >/dev/null 2>&1; then
+          if gh release view "v${VERSION}-custom.${CUSTOM_REVISION}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -85,12 +86,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.build.outputs.version }}
+          CUSTOM_REVISION: ${{ steps.upstream.outputs.custom_revision }}
           ASSET_PATH: ${{ steps.build.outputs.asset_path }}
         shell: bash
         run: |
-          gh release create "v${VERSION}-custom.1" "$ASSET_PATH" \
-            --title "Claude Code ${VERSION} custom.1" \
-            --notes "Unofficial personal build generated from the official ${VERSION} darwin-arm64 VSIX."
+          gh release create "v${VERSION}-custom.${CUSTOM_REVISION}" "$ASSET_PATH" \
+            --title "Claude Code ${VERSION} custom.${CUSTOM_REVISION}" \
+            --notes "Unofficial personal build generated from the official ${VERSION} darwin-arm64 VSIX. The extension UI identifies itself as a custom build."
 
       - name: Open one adaptation issue when patching fails
         if: failure() && steps.upstream.outputs.version != ''

@@ -9,6 +9,7 @@ The repository currently adds these personal features to the official extension:
 - Right-side editor-group reuse, Markdown preview opening, and a prominent maximize/restore action.
 - Codex-like active-plan progress and per-turn changed-file statistics with hover popovers.
 - Provider-agnostic balance/usage presentation with the first adapter for DeepSeek.
+- Visible unofficial custom-build identity in the extension list and sidebar titles.
 - Typography and spacing adjustments that remain materially different from vendor defaults.
 
 The build does not modify the VS Code application bundle. All runtime changes stay inside the

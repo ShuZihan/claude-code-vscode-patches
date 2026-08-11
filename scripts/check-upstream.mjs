@@ -101,6 +101,7 @@ fs.writeFileSync(
 
 emit("due", "true");
 emit("version", selected.version);
+emit("custom_revision", manifest.customRevision);
 emit("target_platform", selected.targetPlatform);
 emit("download_url", selected.downloadUrl);
 emit("last_checked_at", checkedAt);
