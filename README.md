@@ -42,7 +42,7 @@ When a version has no matching custom Release, the workflow:
 
 1. Downloads the official `darwin-arm64` VSIX.
 2. Applies and verifies the patches.
-3. Publishes `v<version>-custom.1` with the custom VSIX asset.
+3. Publishes `v<version>-custom.<revision>` with the custom VSIX asset.
 4. Opens one GitHub issue if an upstream change breaks a compatibility anchor.
 
 Manual workflow runs bypass the 48-hour gate.
