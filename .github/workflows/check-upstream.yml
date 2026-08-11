@@ -70,29 +70,42 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build the patched VSIX
+      - name: Build the patched macOS Apple Silicon VSIX
         if: steps.upstream.outputs.due == 'true' && steps.release.outputs.exists == 'false'
-        id: build
+        id: build_mac
         env:
           VERSION: ${{ steps.upstream.outputs.version }}
-          DOWNLOAD_URL: ${{ steps.upstream.outputs.download_url }}
+          DOWNLOAD_URL: ${{ steps.upstream.outputs.download_url_darwin_arm64 }}
         run: >-
           node scripts/build.mjs
           --download-url "$DOWNLOAD_URL"
           --version "$VERSION"
 
+      - name: Build the patched Windows x64 VSIX
+        if: steps.upstream.outputs.due == 'true' && steps.release.outputs.exists == 'false'
+        id: build_windows
+        env:
+          VERSION: ${{ steps.upstream.outputs.version }}
+          DOWNLOAD_URL: ${{ steps.upstream.outputs.download_url_win32_x64 }}
+        run: >-
+          node scripts/build.mjs
+          --download-url "$DOWNLOAD_URL"
+          --version "$VERSION"
+          --asset-suffix win32-x64
+
       - name: Publish the custom release
-        if: steps.build.outcome == 'success'
+        if: steps.build_mac.outcome == 'success' && steps.build_windows.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.build.outputs.version }}
+          VERSION: ${{ steps.build_mac.outputs.version }}
           CUSTOM_REVISION: ${{ steps.upstream.outputs.custom_revision }}
-          ASSET_PATH: ${{ steps.build.outputs.asset_path }}
+          MAC_ASSET_PATH: ${{ steps.build_mac.outputs.asset_path }}
+          WINDOWS_ASSET_PATH: ${{ steps.build_windows.outputs.asset_path }}
         shell: bash
         run: |
-          gh release create "v${VERSION}-custom.${CUSTOM_REVISION}" "$ASSET_PATH" \
+          gh release create "v${VERSION}-custom.${CUSTOM_REVISION}" "$MAC_ASSET_PATH" "$WINDOWS_ASSET_PATH" \
             --title "Claude Code ${VERSION} custom.${CUSTOM_REVISION}" \
-            --notes "Unofficial personal build generated from the official ${VERSION} darwin-arm64 VSIX. The extension UI identifies itself as a custom build."
+            --notes "Unofficial personal builds generated from the official ${VERSION} darwin-arm64 and win32-x64 VSIX packages. The extension UI identifies itself as a custom build."
 
       - name: Open one adaptation issue when patching fails
         if: failure() && steps.upstream.outputs.version != ''

@@ -3,8 +3,14 @@
   "extensionId": "anthropic.claude-code",
   "publisher": "anthropic",
   "extensionName": "claude-code",
-  "customRevision": 2,
-  "targetPlatform": "darwin-arm64",
+  "customRevision": 3,
+  "targetPlatforms": [
+    "darwin-arm64",
+    "win32-x64"
+  ],
   "checkIntervalHours": 48,
-  "releaseAssetTemplate": "claude-code-vscode-custom-<version>.vsix"
+  "releaseAssets": {
+    "darwin-arm64": "claude-code-vscode-custom-<version>.vsix",
+    "win32-x64": "claude-code-vscode-custom-<version>-win32-x64.vsix"
+  }
 }

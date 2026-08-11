@@ -3,9 +3,9 @@
 > **Unofficial.** This is a personal patch-and-build repository. It is not affiliated with,
 > endorsed by, or supported by Anthropic or Microsoft.
 
-This repository downloads the official `anthropic.claude-code` VSIX, applies a deterministic set
-of personal UI and workflow patches, verifies the result, and publishes a private GitHub Release
-named `claude-code-vscode-custom-<version>.vsix`.
+This repository downloads the official `anthropic.claude-code` VSIX packages, applies a
+deterministic set of personal UI and workflow patches, verifies the results, and publishes private
+GitHub Release assets for macOS Apple Silicon and Windows x64.
 
 No official VSIX, Anthropic executable, API key, account data, or VS Code application file is
 committed to the repository.
@@ -26,7 +26,8 @@ node scripts/build.mjs \
   --version 2.1.226
 ```
 
-The result is written to `dist/claude-code-vscode-custom-<version>.vsix`.
+The default result is written to `dist/claude-code-vscode-custom-<version>.vsix`. Pass
+`--asset-suffix win32-x64` when packaging the Windows asset.
 
 The patcher uses exact match counts for every minified-bundle anchor. Missing or ambiguous anchors
 fail the build before packaging. `scripts/verify-patch.mjs` then checks package identity, required
@@ -40,9 +41,9 @@ month-boundary behavior of day-of-month cron expressions.
 
 When a version has no matching custom Release, the workflow:
 
-1. Downloads the official `darwin-arm64` VSIX.
-2. Applies and verifies the patches.
-3. Publishes `v<version>-custom.<revision>` with the custom VSIX asset.
+1. Downloads the official `darwin-arm64` and `win32-x64` VSIX packages.
+2. Applies and verifies the patches independently on both packages.
+3. Publishes `v<version>-custom.<revision>` with both custom VSIX assets.
 4. Opens one GitHub issue if an upstream change breaks a compatibility anchor.
 
 Manual workflow runs bypass the 48-hour gate.

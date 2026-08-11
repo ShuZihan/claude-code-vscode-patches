@@ -15,8 +15,15 @@ const args = parseArgs(process.argv.slice(2));
 const expectedVersion = args.get("version");
 const sourceVsix = args.get("vsix");
 const downloadUrl = args.get("download-url");
+const assetSuffix = args.get("asset-suffix");
 if (!sourceVsix && !downloadUrl) {
   throw new Error("provide either --vsix PATH or --download-url URL");
+}
+if (
+  assetSuffix !== undefined &&
+  !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(assetSuffix))
+) {
+  throw new Error("--asset-suffix must contain lowercase letters, digits, and hyphens");
 }
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "claude-code-patches-"));
@@ -91,7 +98,9 @@ try {
   fs.mkdirSync(outputDirectory, { recursive: true });
   const outputPath = path.join(
     outputDirectory,
-    `claude-code-vscode-custom-${packageJson.version}.vsix`,
+    `claude-code-vscode-custom-${packageJson.version}${
+      assetSuffix ? `-${assetSuffix}` : ""
+    }.vsix`,
   );
   fs.rmSync(outputPath, { force: true });
   execFileSync("zip", ["-qry", outputPath, "."], {

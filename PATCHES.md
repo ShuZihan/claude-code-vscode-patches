@@ -12,6 +12,9 @@ The repository currently adds these personal features to the official extension:
 - Visible unofficial custom-build identity in the extension list and sidebar titles.
 - Typography and spacing adjustments that remain materially different from vendor defaults.
 
+Release builds currently target macOS Apple Silicon (`darwin-arm64`) and Windows x64
+(`win32-x64`).
+
 The build does not modify the VS Code application bundle. All runtime changes stay inside the
 `anthropic.claude-code` extension directory.
 

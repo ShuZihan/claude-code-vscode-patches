@@ -76,13 +76,28 @@ const response = await fetch(
 if (!response.ok) {
   throw new Error(`Marketplace query failed: HTTP ${response.status}`);
 }
-const selected = selectMarketplaceVersion(
-  await response.json(),
-  manifest.targetPlatform,
+const marketplacePayload = await response.json();
+const selectedPlatforms = manifest.targetPlatforms.map((targetPlatform) =>
+  selectMarketplaceVersion(marketplacePayload, targetPlatform),
 );
-if (selected.extensionId.toLowerCase() !== manifest.extensionId.toLowerCase()) {
-  throw new Error(`Marketplace returned unexpected extension ${selected.extensionId}`);
+for (const selected of selectedPlatforms) {
+  if (selected.extensionId.toLowerCase() !== manifest.extensionId.toLowerCase()) {
+    throw new Error(
+      `Marketplace returned unexpected extension ${selected.extensionId}`,
+    );
+  }
 }
+const selectedVersions = new Set(
+  selectedPlatforms.map((selected) => selected.version),
+);
+if (selectedVersions.size !== 1) {
+  throw new Error(
+    `Marketplace platform versions differ: ${selectedPlatforms
+      .map((selected) => `${selected.targetPlatform}=${selected.version}`)
+      .join(", ")}`,
+  );
+}
+const selectedVersion = selectedPlatforms[0].version;
 
 const checkedAt = new Date().toISOString();
 fs.mkdirSync(stateDirectory, { recursive: true });
@@ -91,8 +106,10 @@ fs.writeFileSync(
   `${JSON.stringify(
     {
       lastCheckedAt: checkedAt,
-      latestVersion: selected.version,
-      targetPlatform: selected.targetPlatform,
+      latestVersion: selectedVersion,
+      targetPlatforms: selectedPlatforms.map(
+        (selected) => selected.targetPlatform,
+      ),
     },
     null,
     2,
@@ -100,8 +117,12 @@ fs.writeFileSync(
 );
 
 emit("due", "true");
-emit("version", selected.version);
+emit("version", selectedVersion);
 emit("custom_revision", manifest.customRevision);
-emit("target_platform", selected.targetPlatform);
-emit("download_url", selected.downloadUrl);
+for (const selected of selectedPlatforms) {
+  emit(
+    `download_url_${selected.targetPlatform.replaceAll("-", "_")}`,
+    selected.downloadUrl,
+  );
+}
 emit("last_checked_at", checkedAt);
