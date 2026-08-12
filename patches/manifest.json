@@ -3,7 +3,7 @@
   "extensionId": "anthropic.claude-code",
   "publisher": "anthropic",
   "extensionName": "claude-code",
-  "customRevision": 3,
+  "customRevision": 14,
   "targetPlatforms": [
     "darwin-arm64",
     "win32-x64"

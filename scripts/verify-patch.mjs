@@ -22,9 +22,11 @@ const requiredFiles = [
   "extension.js",
   "package.json",
   "codex-file-open-policy.cjs",
+  "codex-fork-session.cjs",
   "codex-provider-usage.js",
   "webview/index.js",
   "webview/index.css",
+  "webview/codex-answer-fork.js",
   "webview/codex-markdown-runtime.js",
   "webview/codex-message-rail.js",
   "webview/codex-progress-runtime.js",
@@ -68,12 +70,21 @@ if (command?.length !== 1) {
 
 const markerChecks = [
   ["extension.js", "CodexFileOpenPolicy.installOpenFile"],
+  ["extension.js", "CodexForkSession.forkAndPrepareSession"],
+  ["extension.js", "CodexForkSession.normalizeForkedEntry"],
   ["extension.js", "codexCreateProviderUsageModule"],
+  ["extension.js", "this.providerUsage.trackClient"],
+  ["extension.js", "this.providerUsage.untrackClient"],
   ["extension.js", "handleCodexProgressMessage"],
   ["extension.js", "codex-message-rail.js"],
+  ["extension.js", "codex-answer-fork.js"],
   ["webview/index.js", "CodexCopyMarkdownButton"],
+  ["webview/index.js", "CodexForkAnswerButton"],
   ["webview/index.js", '"data-testid":"user-message"'],
   ["webview/index.js", "__claudeCodexProgressUpdate"],
+  ["webview/index.js", "ClaudeCodexProviderUsage?.setCwd(e.cwd.value)"],
+  ["webview/index.js", "locallyDeletedSessionIds=new Set"],
+  ["webview/index.js", "...e.locallyDeletedSessionIds"],
   ["webview/index.css", "--claude-codex-content-width"],
   ["webview/index.css", ".codexProviderUsageControl"],
   ["webview/index.css", ".codexProgressStatusShell"],
@@ -85,11 +96,38 @@ for (const [relativePath, marker] of markerChecks) {
   }
 }
 
+const extensionSource = fs.readFileSync(
+  path.join(extensionRoot, "extension.js"),
+  "utf8",
+);
+if (/codexCreateProviderUsageModule\(\{getRuntimeEnvironment:/.test(extensionSource)) {
+  throw new Error(
+    "extension.js: provider usage bridge must not depend on a minified runtime binding",
+  );
+}
+if (!extensionSource.includes("codexCreateProviderUsageModule()")) {
+  throw new Error(
+    "extension.js: provider usage bridge is not using the owned per-chat config reader",
+  );
+}
+if (
+  extensionSource.includes("this.providerUsage.untrackClient(e.webview)") ||
+  !extensionSource.includes(
+    "let codexWebview=e.webview;e.onDidDispose(()=>{this.providerUsage.untrackClient(codexWebview)",
+  )
+) {
+  throw new Error(
+    "extension.js: provider usage disposal must use a Webview captured before disposal",
+  );
+}
+
 for (const relativePath of [
   "extension.js",
   "codex-file-open-policy.cjs",
+  "codex-fork-session.cjs",
   "codex-provider-usage.js",
   "webview/index.js",
+  "webview/codex-answer-fork.js",
   "webview/codex-markdown-runtime.js",
   "webview/codex-message-rail.js",
   "webview/codex-progress-runtime.js",

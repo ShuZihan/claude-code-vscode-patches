@@ -19,6 +19,56 @@ export function replaceExact(
   return source.split(needle).join(replacement);
 }
 
+export function buildCopyMarkdownSnippet(source) {
+  const successIcon =
+    'function CodexCopySuccessIcon(e){return b("svg",{width:16,height:16,viewBox:"0 0 16 16",fill:"none","aria-hidden":!0,...e,children:b("path",{d:"M3.5 8.25 6.5 11l6-6",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"})})}';
+  const withOwnedSuccessIcon = replaceExact(
+    source,
+    "function CodexCopyMarkdownButton",
+    `${successIcon}function CodexCopyMarkdownButton`,
+    1,
+    "copy Markdown success icon",
+  );
+  return replaceExact(
+    withOwnedSuccessIcon,
+    "b(tb,{size:14})",
+    'b(CodexCopySuccessIcon,{className:"codexCopyMarkdownIcon"})',
+    1,
+    "copy Markdown success state",
+  );
+}
+
+export function patchSessionDeletionState(source) {
+  let patched = replaceExact(
+    source,
+    "listSessionsPromise;lastLocalRenameAt=new Map;",
+    "listSessionsPromise;locallyDeletedSessionIds=new Set;lastLocalRenameAt=new Map;",
+    1,
+    "session deletion local state",
+  );
+  patched = replaceExact(
+    patched,
+    'async deleteSession(e){if(this.sessions.value=this.sessions.value.filter((i)=>i!==e),this.activeSession.value===e){if(this.activeSession.value=this.sessions.value[0],!this.activeSession.value)this.createSession()}let t=e.sessionId.value;if(t)await(await this.getConnection()).deleteSession(t)}',
+    'async deleteSession(e){let t=e.sessionId.value;if(t)this.locallyDeletedSessionIds.add(t);if(this.sessions.value=this.sessions.value.filter((i)=>i!==e&&(!t||i.sessionId.value!==t)),this.activeSession.value===e){if(this.activeSession.value=this.sessions.value[0],!this.activeSession.value)this.createSession()}if(t)try{await(await this.getConnection()).deleteSession(t)}catch(i){this.locallyDeletedSessionIds.delete(t),await this.listSessions();throw i}}',
+    1,
+    "session deletion optimistic hide",
+  );
+  patched = replaceExact(
+    patched,
+    "for(let a of i.sessions){if(!a.isCurrentWorkspace)continue;let l=o.find",
+    "for(let a of i.sessions){if(!a.isCurrentWorkspace||this.locallyDeletedSessionIds.has(a.id))continue;let l=o.find",
+    1,
+    "session deletion in-flight list guard",
+  );
+  return replaceExact(
+    patched,
+    "let o=e.sessions.value,r=i.value,s=to(()=>{let k=new Set(o.map((D)=>D.sessionId.value));return r.filter((D)=>!k.has(D.sessionId))",
+    "let o=e.sessions.value,r=i.value,s=to(()=>{let k=new Set([...o.map((D)=>D.sessionId.value),...e.locallyDeletedSessionIds]);return r.filter((D)=>!k.has(D.sessionId))",
+    1,
+    "session deletion synthetic state guard",
+  );
+}
+
 export function shouldQuery({
   lastCheckedAt,
   now = Date.now(),

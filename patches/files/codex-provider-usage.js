@@ -18,24 +18,22 @@ function readSettingsEnvironment(filename) {
   }
 }
 
-function createConfigReader({ getRuntimeEnvironment, getWorkspaceRoots } = {}) {
-  return () => {
+function createConfigReader({ getRuntimeEnvironment, homeDirectory = os.homedir() } = {}) {
+  return ({ cwd } = {}) => {
     const environment = {};
     Object.assign(
       environment,
-      readSettingsEnvironment(path.join(os.homedir(), ".claude", "settings.json")),
+      readSettingsEnvironment(path.join(homeDirectory, ".claude", "settings.json")),
       readSettingsEnvironment(
-        path.join(os.homedir(), ".claude", "settings.local.json"),
+        path.join(homeDirectory, ".claude", "settings.local.json"),
       ),
     );
 
-    const roots = typeof getWorkspaceRoots === "function" ? getWorkspaceRoots() : [];
-    for (const root of Array.isArray(roots) ? roots : []) {
-      if (typeof root !== "string" || !path.isAbsolute(root)) continue;
+    if (typeof cwd === "string" && path.isAbsolute(cwd)) {
       Object.assign(
         environment,
-        readSettingsEnvironment(path.join(root, ".claude", "settings.json")),
-        readSettingsEnvironment(path.join(root, ".claude", "settings.local.json")),
+        readSettingsEnvironment(path.join(cwd, ".claude", "settings.json")),
+        readSettingsEnvironment(path.join(cwd, ".claude", "settings.local.json")),
       );
     }
 
@@ -114,6 +112,25 @@ function safeDecimal(value) {
     : null;
 }
 
+function safeNumber(value) {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : NaN;
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function providerOrigin(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 function createDeepSeekAdapter({ request }) {
   return {
     id: "deepseek",
@@ -178,6 +195,130 @@ function createDeepSeekAdapter({ request }) {
   };
 }
 
+function createNewApiAdapter({ request }) {
+  return {
+    id: "new-api-compatible",
+    displayName: "New API-compatible",
+    matches(config) {
+      const origin = providerOrigin(config.baseUrl);
+      return origin !== null && origin !== "https://api.deepseek.com";
+    },
+    async query(config, fetchedAt) {
+      const origin = providerOrigin(config.baseUrl);
+      const status = await request(`${origin}/api/status`);
+      const siteName = status?.data?.system_name?.trim();
+      const quotaPerUnit = safeNumber(status?.data?.quota_per_unit);
+      if (
+        status?.success !== true ||
+        !siteName ||
+        siteName.length > 100 ||
+        quotaPerUnit === null
+      ) {
+        throw Object.assign(new Error("Endpoint is not New API-compatible"), {
+          code: "unsupported_provider",
+        });
+      }
+      if (quotaPerUnit === 0) {
+        throw Object.assign(new Error("New API returned invalid status data"), {
+          code: "invalid_response",
+        });
+      }
+      const quotaDisplayType = status.data.quota_display_type;
+      let display;
+      if (quotaDisplayType === "CNY") {
+        const rate = Number(status.data.usd_exchange_rate);
+        if (!Number.isFinite(rate) || rate <= 0) {
+          throw Object.assign(new Error("New API returned invalid CNY rate"), {
+            code: "invalid_response",
+          });
+        }
+        display = { displayType: "currency", currency: "CNY", rate };
+      } else if (quotaDisplayType === "USD") {
+        display = { displayType: "currency", currency: "USD", rate: 1 };
+      } else if (quotaDisplayType === "TOKENS") {
+        display = { displayType: "tokens" };
+      } else if (quotaDisplayType === "CUSTOM") {
+        const symbol = status.data.custom_currency_symbol?.trim();
+        const rate = Number(status.data.custom_currency_exchange_rate);
+        if (
+          !symbol ||
+          symbol.length > 12 ||
+          !Number.isFinite(rate) ||
+          rate <= 0
+        ) {
+          throw Object.assign(new Error("New API returned invalid custom currency"), {
+            code: "invalid_response",
+          });
+        }
+        display = { displayType: "custom", symbol, rate };
+      } else {
+        throw Object.assign(new Error("New API returned unsupported quota display"), {
+          code: "invalid_response",
+        });
+      }
+
+      let usage;
+      try {
+        usage = await request(`${origin}/api/usage/token/`, {
+          headers: { Authorization: `Bearer ${config.token}` },
+        });
+      } catch (error) {
+        error.providerName = siteName;
+        throw error;
+      }
+      const data = usage?.data;
+      const totalGranted = safeNumber(data?.total_granted);
+      const totalUsed = safeNumber(data?.total_used);
+      const totalAvailable = safeNumber(data?.total_available);
+      if (
+        usage?.code !== true ||
+        data?.object !== "token_usage" ||
+        totalGranted === null ||
+        totalUsed === null ||
+        totalAvailable === null ||
+        typeof data?.unlimited_quota !== "boolean" ||
+        typeof data?.name !== "string" ||
+        data.name.length > 100 ||
+        !Number.isSafeInteger(data?.expires_at) ||
+        data.expires_at < 0
+      ) {
+        throw Object.assign(new Error("New API returned invalid token usage"), {
+          code: "invalid_response",
+        });
+      }
+      const toDisplayValue = (quota) =>
+        display.displayType === "tokens"
+          ? String(quota)
+          : ((quota / quotaPerUnit) * display.rate).toFixed(2);
+      return {
+        version: 1,
+        providerId: this.id,
+        providerName: siteName,
+        status: "ready",
+        isAvailable: data.unlimited_quota || totalAvailable > 0,
+        resources: [
+          {
+            kind: "quota",
+            ...(display.displayType === "currency"
+              ? { displayType: "currency", currency: display.currency }
+              : display.displayType === "custom"
+                ? { displayType: "custom", symbol: display.symbol }
+                : { displayType: "tokens" }),
+            totalAvailable: toDisplayValue(totalAvailable),
+            totalGranted: toDisplayValue(totalGranted),
+            totalUsed: toDisplayValue(totalUsed),
+            unlimited: data.unlimited_quota,
+            tokenName: data.name,
+            expiresAt: data.expires_at,
+          },
+        ],
+        fetchedAt,
+        stale: false,
+      };
+    },
+  };
+}
+
 function errorCode(error) {
   if (error?.statusCode === 401) return "unauthorized";
   if (error?.statusCode === 403) return "forbidden";
@@ -193,7 +334,8 @@ function configCacheKey(adapter, config) {
     .update(config.token)
     .digest("hex")
     .slice(0, 16);
-  return `${adapter.id}|${config.baseUrl}|${tokenHash}`;
+  const normalizedBaseUrl = providerOrigin(config.baseUrl) || config.baseUrl;
+  return `${adapter.id}|${normalizedBaseUrl}|${tokenHash}`;
 }
 
 function createProviderUsageModule({
@@ -202,17 +344,26 @@ function createProviderUsageModule({
   now = () => Date.now(),
   ttlMs = DEFAULT_TTL_MS,
   getRuntimeEnvironment,
-  getWorkspaceRoots,
+  homeDirectory,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
 } = {}) {
   const resolveConfig =
-    readConfig || createConfigReader({ getRuntimeEnvironment, getWorkspaceRoots });
-  const adapters = [createDeepSeekAdapter({ request })];
-  let cache = null;
+    readConfig || createConfigReader({ getRuntimeEnvironment, homeDirectory });
+  const adapters = [
+    createDeepSeekAdapter({ request }),
+    createNewApiAdapter({ request }),
+  ];
+  const cacheByKey = new Map();
+  const inFlightByKey = new Map();
+  const clients = new Map();
+  let refreshTimer = null;
+  let disposed = false;
 
-  async function query({ force = false } = {}) {
+  async function query({ force = false, cwd } = {}) {
     const fetchedAtMs = now();
     const fetchedAt = new Date(fetchedAtMs).toISOString();
-    const config = await resolveConfig();
+    const config = await resolveConfig({ cwd });
     const baseUrl = typeof config?.baseUrl === "string" ? config.baseUrl : "";
     const token = typeof config?.token === "string" ? config.token : "";
     const normalizedConfig = { baseUrl, token };
@@ -242,29 +393,110 @@ function createProviderUsageModule({
     }
 
     const key = configCacheKey(adapter, normalizedConfig);
-    if (!force && cache?.key === key && fetchedAtMs - cache.createdAt < ttlMs) {
+    const cache = cacheByKey.get(key);
+    if (
+      !force &&
+      cache &&
+      fetchedAtMs - cache.createdAt < ttlMs
+    ) {
       return cache.report;
     }
+    const existingRequest = inFlightByKey.get(key);
+    if (existingRequest) return existingRequest;
 
-    try {
-      const report = await adapter.query(normalizedConfig, fetchedAt);
-      cache = { key, createdAt: fetchedAtMs, report };
+    const pending = (async () => {
+      let report;
+      try {
+        report = await adapter.query(normalizedConfig, fetchedAt);
+      } catch (error) {
+        const failure =
+          error?.code === "unsupported_provider"
+            ? {
+                version: 1,
+                providerId: null,
+                providerName: "当前提供商",
+                status: "unsupported",
+                resources: [],
+                fetchedAt,
+                stale: false,
+              }
+            : {
+                version: 1,
+                providerId: adapter.id,
+                providerName: error?.providerName || adapter.displayName,
+                status: "error",
+                errorCode: errorCode(error),
+                resources: [],
+                fetchedAt,
+                stale: false,
+              };
+        report =
+          cache?.report.status === "ready"
+            ? {
+                ...cache.report,
+                stale: true,
+                errorCode: failure.errorCode || "unsupported_provider",
+                failedAt: fetchedAt,
+              }
+            : failure;
+      }
+      cacheByKey.set(key, { createdAt: fetchedAtMs, report });
       return report;
-    } catch (error) {
-      return {
-        version: 1,
-        providerId: adapter.id,
-        providerName: adapter.displayName,
-        status: "error",
-        errorCode: errorCode(error),
-        resources: [],
-        fetchedAt,
-        stale: false,
-      };
+    })();
+    inFlightByKey.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      if (inFlightByKey.get(key) === pending) inFlightByKey.delete(key);
     }
   }
 
-  return Object.freeze({ query });
+  function scheduleRefresh() {
+    if (disposed || refreshTimer !== null || clients.size === 0) return;
+    refreshTimer = setTimer(refreshTrackedClients, ttlMs);
+    refreshTimer?.unref?.();
+  }
+
+  async function refreshTrackedClients() {
+    refreshTimer = null;
+    if (disposed) return;
+    const snapshot = [...clients.entries()];
+    try {
+      await Promise.allSettled(
+        snapshot.map(async ([id, client]) => {
+          const report = await query({ cwd: client.cwd });
+          if (clients.get(id) === client) await client.onUpdate(report);
+        }),
+      );
+    } finally {
+      scheduleRefresh();
+    }
+  }
+
+  function trackClient(id, { cwd, onUpdate }) {
+    if (typeof onUpdate !== "function") {
+      throw new TypeError("Provider usage client requires an update callback");
+    }
+    clients.set(id, { cwd, onUpdate });
+    scheduleRefresh();
+  }
+
+  function untrackClient(id) {
+    clients.delete(id);
+    if (clients.size === 0 && refreshTimer !== null) {
+      clearTimer(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  function dispose() {
+    disposed = true;
+    clients.clear();
+    if (refreshTimer !== null) clearTimer(refreshTimer);
+    refreshTimer = null;
+  }
+
+  return Object.freeze({ dispose, query, trackClient, untrackClient });
 }
 
 module.exports = { createProviderUsageModule };

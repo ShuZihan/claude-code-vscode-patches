@@ -44,14 +44,14 @@
         typeof filePath !== "string" ||
         !diff ||
         typeof diff !== "object" ||
-        (diff.oldContent !== null && typeof diff.oldContent !== "string") ||
-        (diff.newContent !== null && typeof diff.newContent !== "string")
+        (diff.oldContent != null && typeof diff.oldContent !== "string") ||
+        (diff.newContent != null && typeof diff.newContent !== "string")
       ) {
         continue;
       }
       normalized[filePath] = {
-        oldContent: diff.oldContent,
-        newContent: diff.newContent,
+        oldContent: diff.oldContent ?? null,
+        newContent: diff.newContent ?? null,
       };
     }
     return normalized;
@@ -221,14 +221,19 @@
     return true;
   }
 
-  function createStatusIcon(status, progress = 0) {
+  function createStatusIcon(status, { variant = "step", progress = 0 } = {}) {
     const icon = document.createElement("span");
     icon.className = "codexProgressStatusIcon";
     icon.dataset.status = status;
+    icon.dataset.variant = variant;
     icon.setAttribute("aria-hidden", "true");
     if (status === "completed") icon.textContent = "✓";
-    if (status === "in_progress") {
-      icon.style.setProperty("--codex-progress", `${Math.max(8, progress)}%`);
+    if (status === "in_progress" && variant === "overall") {
+      icon.classList.add("codexProgressOverallIcon");
+      icon.style.setProperty(
+        "--codex-progress",
+        `${Math.min(100, Math.max(0, progress))}%`,
+      );
     }
     return icon;
   }
@@ -246,9 +251,7 @@
     const completedCount = todos.filter(
       (todo) => todo.status === "completed",
     ).length;
-    const progress = todos.length
-      ? Math.round((completedCount / todos.length) * 100)
-      : 0;
+    const progress = todos.length ? (completedCount / todos.length) * 100 : 0;
 
     const group = document.createElement("div");
     group.className = "codexProgressTriggerGroup codexProgressPlanGroup";
@@ -259,7 +262,9 @@
       "aria-label",
       `第 ${currentIndex + 1} / ${todos.length} 步，悬浮查看步骤`,
     );
-    button.append(createStatusIcon("in_progress", progress));
+    button.append(
+      createStatusIcon("in_progress", { variant: "overall", progress }),
+    );
     const label = document.createElement("span");
     label.className = "codexProgressTriggerLabel";
     label.textContent = `第 ${currentIndex + 1} / ${todos.length} 步`;
@@ -274,7 +279,7 @@
       const item = document.createElement("li");
       item.className = "codexProgressPlanItem";
       item.dataset.status = todo.status;
-      item.append(createStatusIcon(todo.status, index === currentIndex ? progress : 0));
+      item.append(createStatusIcon(todo.status));
       const text = document.createElement("span");
       text.className = "codexProgressPlanText";
       text.textContent = todo.content;

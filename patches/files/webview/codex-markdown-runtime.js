@@ -17,6 +17,10 @@
   let providerUsagePendingRequest = "";
   let providerUsageSequence = 0;
   let providerUsageHasQueried = false;
+  let providerUsageCwd =
+    typeof window.__claudeCodexProviderUsageCwd === "string"
+      ? window.__claudeCodexProviderUsageCwd.trim()
+      : "";
 
   const languageAliases = new Map([
     ["c++", "cpp"],
@@ -625,14 +629,36 @@
     ) {
       return false;
     }
-    return report.resources.every(
-      (resource) =>
-        resource?.kind === "money" &&
-        ["CNY", "USD"].includes(resource.currency) &&
-        isDecimal(resource.totalBalance) &&
-        isDecimal(resource.toppedUpBalance) &&
-        isDecimal(resource.grantedBalance),
-    );
+    return report.resources.every((resource) => {
+      if (resource?.kind === "money") {
+        return (
+          ["CNY", "USD"].includes(resource.currency) &&
+          isDecimal(resource.totalBalance) &&
+          isDecimal(resource.toppedUpBalance) &&
+          isDecimal(resource.grantedBalance)
+        );
+      }
+      if (resource?.kind !== "quota") return false;
+      const validDisplay =
+        (resource.displayType === "currency" &&
+          ["CNY", "USD"].includes(resource.currency)) ||
+        (resource.displayType === "custom" &&
+          typeof resource.symbol === "string" &&
+          resource.symbol.length > 0 &&
+          resource.symbol.length <= 12) ||
+        resource.displayType === "tokens";
+      return (
+        validDisplay &&
+        isDecimal(resource.totalAvailable) &&
+        isDecimal(resource.totalGranted) &&
+        isDecimal(resource.totalUsed) &&
+        typeof resource.unlimited === "boolean" &&
+        typeof resource.tokenName === "string" &&
+        resource.tokenName.length <= 100 &&
+        Number.isSafeInteger(resource.expiresAt) &&
+        resource.expiresAt >= 0
+      );
+    });
   }
 
   function formatCurrency(value, currency) {
@@ -651,6 +677,18 @@
     } catch {
       return `${currency} ${value}`;
     }
+  }
+
+  function formatQuotaValue(resource, value) {
+    if (resource.unlimited) return "无限额度";
+    if (resource.displayType === "currency") {
+      return formatCurrency(value, resource.currency);
+    }
+    if (resource.displayType === "custom") {
+      return `${resource.symbol}${value}`;
+    }
+    const amount = Number(value);
+    return `${Number.isFinite(amount) ? amount.toLocaleString("zh-CN") : value} quota`;
   }
 
   function providerUsageErrorText(report) {
@@ -764,6 +802,13 @@
     }
 
     if (providerUsageReport?.status === "ready") {
+      if (providerUsageReport.stale) {
+        const warning = document.createElement("div");
+        warning.className = "codexProviderUsageNotice";
+        warning.textContent = `更新失败，数据可能已过期。${providerUsageErrorText(providerUsageReport)}`;
+        popover.append(warning);
+      }
+
       if (providerUsageReport.isAvailable === false) {
         const warning = document.createElement("div");
         warning.className = "codexProviderUsageNotice";
@@ -780,22 +825,51 @@
           currency.textContent = resource.currency;
           section.append(currency);
         }
-        appendUsageRow(
-          section,
-          "总可用余额",
-          formatCurrency(resource.totalBalance, resource.currency),
-          true,
-        );
-        appendUsageRow(
-          section,
-          "充值余额",
-          formatCurrency(resource.toppedUpBalance, resource.currency),
-        );
-        appendUsageRow(
-          section,
-          "赠金余额",
-          formatCurrency(resource.grantedBalance, resource.currency),
-        );
+        if (resource.kind === "money") {
+          appendUsageRow(
+            section,
+            "总可用余额",
+            formatCurrency(resource.totalBalance, resource.currency),
+            true,
+          );
+          appendUsageRow(
+            section,
+            "充值余额",
+            formatCurrency(resource.toppedUpBalance, resource.currency),
+          );
+          appendUsageRow(
+            section,
+            "赠金余额",
+            formatCurrency(resource.grantedBalance, resource.currency),
+          );
+        } else {
+          appendUsageRow(
+            section,
+            "可用额度",
+            formatQuotaValue(resource, resource.totalAvailable),
+            true,
+          );
+          if (!resource.unlimited) {
+            appendUsageRow(
+              section,
+              "总额度",
+              formatQuotaValue(resource, resource.totalGranted),
+            );
+            appendUsageRow(
+              section,
+              "已使用",
+              formatQuotaValue(resource, resource.totalUsed),
+            );
+          }
+          appendUsageRow(section, "Key", resource.tokenName || "未命名");
+          appendUsageRow(
+            section,
+            "到期",
+            resource.expiresAt === 0
+              ? "永不过期"
+              : new Date(resource.expiresAt * 1000).toLocaleDateString(),
+          );
+        }
         popover.append(section);
       });
     } else if (providerUsageReport) {
@@ -841,14 +915,14 @@
       separator.textContent = "·";
       const amount = document.createElement("span");
       amount.className = "codexProviderUsageAmount";
-      amount.textContent = formatCurrency(
-        resource.totalBalance,
-        resource.currency,
-      );
+      amount.textContent =
+        resource.kind === "money"
+          ? formatCurrency(resource.totalBalance, resource.currency)
+          : formatQuotaValue(resource, resource.totalAvailable);
       label.append(provider, separator, amount);
       button.setAttribute(
         "aria-label",
-        `${providerUsageReport.providerName}，总可用余额 ${amount.textContent}`,
+        `${providerUsageReport.providerName}，${resource.kind === "money" ? "总可用余额" : "可用额度"} ${amount.textContent}`,
       );
       button.title = button.getAttribute("aria-label");
     } else {
@@ -898,9 +972,24 @@
       type: "codex.providerUsage.query",
       requestId: providerUsagePendingRequest,
       force,
+      cwd: providerUsageCwd,
     });
     return true;
   }
+
+  function setProviderUsageCwd(cwd) {
+    const nextCwd =
+      typeof cwd === "string" && cwd.length <= 32_768 ? cwd.trim() : "";
+    if (!nextCwd || nextCwd === providerUsageCwd) return;
+    providerUsageCwd = nextCwd;
+    window.__claudeCodexProviderUsageCwd = nextCwd;
+    providerUsageReport = null;
+    queryProviderUsage(false);
+  }
+
+  window.ClaudeCodexProviderUsage = Object.freeze({
+    setCwd: setProviderUsageCwd,
+  });
 
   function ensureProviderUsageControl() {
     if (window.IS_SESSION_LIST_ONLY) return;
@@ -932,6 +1021,7 @@
         button.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
         popover.hidden = !shouldOpen;
         if (shouldOpen) {
+          queryProviderUsage(false);
           renderProviderUsagePopover(host);
           positionProviderUsagePopover(host);
         }
@@ -1002,13 +1092,17 @@
 
   window.addEventListener("message", (event) => {
     const message = event.data;
+    if (message?.type === "codex.providerUsage.update") {
+      if (!isProviderUsageReport(message.report)) return;
+      providerUsageReport = message.report;
+      renderProviderUsageControls();
+      return;
+    }
     if (
       message?.type !== "codex.providerUsage.result" ||
       message.requestId !== providerUsagePendingRequest ||
       !isProviderUsageReport(message.report)
-    ) {
-      return;
-    }
+    ) return;
     providerUsageReport = message.report;
     providerUsageLoading = false;
     providerUsagePendingRequest = "";

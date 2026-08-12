@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs, replaceExact } from "./lib.mjs";
+import {
+  buildCopyMarkdownSnippet,
+  parseArgs,
+  patchSessionDeletionState,
+  replaceExact,
+} from "./lib.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -179,9 +184,25 @@ function patchExtensionBundle() {
   source = replaceExact(
     source,
     bundleUrl,
-    `${bundleUrl}\nvar CodexFileOpenPolicy = require("./codex-file-open-policy.cjs");\nprocess.nextTick(() => CodexFileOpenPolicy.installOpenFile(${hostClass}, { vscode: ${vscodeBinding}, fs: ${fsBinding}, findFiles: ${findFilesBinding} }));`,
+    `${bundleUrl}\nvar CodexFileOpenPolicy = require("./codex-file-open-policy.cjs");\nvar CodexForkSession = require("./codex-fork-session.cjs");\nprocess.nextTick(() => CodexFileOpenPolicy.installOpenFile(${hostClass}, { vscode: ${vscodeBinding}, fs: ${fsBinding}, findFiles: ${findFilesBinding} }));`,
     1,
     "file-open policy bootstrap",
+  );
+
+  source = replacePattern(
+    source,
+    /case"fork_conversation":return\{type:"fork_conversation_response",sessionId:await\(await ([A-Za-z_$][\w$]*)\.load\(this\.cwd,this\.logger\)\)\.forkSession\(e\.request\.forkedFromSession,e\.request\.resumeSessionAt\)\}/,
+    (_match, sessionStoreBinding) =>
+      `case"fork_conversation":return{type:"fork_conversation_response",sessionId:await CodexForkSession.forkAndPrepareSession(await ${sessionStoreBinding}.load(this.cwd,this.logger),e.request.forkedFromSession,e.request.resumeSessionAt)}`,
+    1,
+    "fork session discoverability",
+  );
+  source = replaceExact(
+    source,
+    "$={...T,...D,uuid:E,parentUuid:O,sessionId:s,timestamp:R,sessionKind:void 0}",
+    "$=CodexForkSession.normalizeForkedEntry({...T,...D,uuid:E,parentUuid:O,sessionId:s,timestamp:R,sessionKind:void 0})",
+    1,
+    "fork transcript IDE entrypoint",
   );
 
   source = replaceExact(
@@ -201,14 +222,14 @@ function patchExtensionBundle() {
   source = replaceExact(
     source,
     "this.documentClosedEvents=l;this.getSelection=u;this.authManager=",
-    `this.documentClosedEvents=l;this.getSelection=u;this.providerUsage=codexCreateProviderUsageModule({getRuntimeEnvironment:()=>\$p(),getWorkspaceRoots:()=>${providerVscodeBinding}.workspace.workspaceFolders?.map((d)=>d.uri.fsPath)||[]});this.authManager=`,
+    "this.documentClosedEvents=l;this.getSelection=u;this.providerUsage=codexCreateProviderUsageModule();this.authManager=",
     1,
     "provider usage initialization",
   );
   source = replaceExact(
     source,
     "deliverStashedAtMention(e){let t=this.atMentionStash.take();if(t!==void 0)e.sendAtMention(t)}resolveWebviewView(e,t,r){",
-    'deliverStashedAtMention(e){let t=this.atMentionStash.take();if(t!==void 0)e.sendAtMention(t)}handleCodexProviderUsageMessage(e,t){if(e?.type!=="codex.providerUsage.query")return!1;let r=typeof e.requestId==="string"?e.requestId:"";return this.providerUsage.query({force:e.force===!0}).then((n)=>t.postMessage({type:"codex.providerUsage.result",requestId:r,report:n})).catch(()=>t.postMessage({type:"codex.providerUsage.result",requestId:r,report:{version:1,providerId:null,providerName:"当前提供商",status:"error",errorCode:"internal_error",resources:[],fetchedAt:new Date().toISOString(),stale:!1}})),!0}resolveWebviewView(e,t,r){',
+    'deliverStashedAtMention(e){let t=this.atMentionStash.take();if(t!==void 0)e.sendAtMention(t)}handleCodexProviderUsageMessage(e,t){if(e?.type!=="codex.providerUsage.query")return!1;let r=typeof e.requestId==="string"?e.requestId:"",n=typeof e.cwd==="string"&&e.cwd.length<=32768?e.cwd:"";return this.providerUsage.trackClient(t,{cwd:n,onUpdate:(i)=>t.postMessage({type:"codex.providerUsage.update",report:i})}),this.providerUsage.query({force:e.force===!0,cwd:n}).then((i)=>t.postMessage({type:"codex.providerUsage.result",requestId:r,report:i})).catch(()=>t.postMessage({type:"codex.providerUsage.result",requestId:r,report:{version:1,providerId:null,providerName:"当前提供商",status:"error",errorCode:"internal_error",resources:[],fetchedAt:new Date().toISOString(),stale:!1}})),!0}resolveWebviewView(e,t,r){',
     1,
     "provider usage handler",
   );
@@ -225,6 +246,27 @@ function patchExtensionBundle() {
     'e.webview.onDidReceiveMessage((u)=>{this.output.info(`Received message from webview: ${JSON.stringify(u)}`),this.handleCodexProviderUsageMessage(u,e.webview)||a?.fromClient(u)},null,this.disposables)',
     1,
     "editor provider bridge",
+  );
+  source = replaceExact(
+    source,
+    ",e.onDidDispose(()=>{o.shutdown(),this.allComms.delete(o),this.webviews.delete(s),this.updateSidebarActiveState()",
+    ";let codexWebview=e.webview;e.onDidDispose(()=>{this.providerUsage.untrackClient(codexWebview),o.shutdown(),this.allComms.delete(o),this.webviews.delete(s),this.updateSidebarActiveState()",
+    2,
+    "sidebar provider disposal",
+  );
+  source = replaceExact(
+    source,
+    ",e.onDidDispose(()=>{a.shutdown(),this.allComms.delete(a),this.webviews.delete(c),this.updateSidebarActiveState()",
+    ";let codexWebview=e.webview;e.onDidDispose(()=>{this.providerUsage.untrackClient(codexWebview),a.shutdown(),this.allComms.delete(a),this.webviews.delete(c),this.updateSidebarActiveState()",
+    1,
+    "editor provider disposal",
+  );
+  source = replaceExact(
+    source,
+    '}dispose(){while(this.disposables.length){let e=this.disposables.pop();if(e)e.dispose()}}async shutdownAll(){',
+    '}dispose(){this.providerUsage.dispose();while(this.disposables.length){let e=this.disposables.pop();if(e)e.dispose()}}async shutdownAll(){',
+    1,
+    "provider usage disposal",
   );
 
   const progressHandler =
@@ -277,18 +319,27 @@ function patchExtensionBundle() {
       '        <script nonce="${u}" src="${a}" type="module"></script>',
       `        <script nonce="\${u}" src="\${e.asWebviewUri(${providerVscodeBinding}.Uri.joinPath(this.extensionUri,"webview","codex-message-rail.js"))}" type="module"></script>`,
       `        <script nonce="\${u}" src="\${e.asWebviewUri(${providerVscodeBinding}.Uri.joinPath(this.extensionUri,"webview","codex-progress-runtime.js"))}" type="module"></script>`,
+      `        <script nonce="\${u}" src="\${e.asWebviewUri(${providerVscodeBinding}.Uri.joinPath(this.extensionUri,"webview","codex-answer-fork.js"))}" type="module"></script>`,
       `        <script nonce="\${u}" src="\${e.asWebviewUri(${providerVscodeBinding}.Uri.joinPath(this.extensionUri,"webview","codex-markdown-runtime.js"))}" type="module"></script>`,
       "      </body>",
     ].join("\n"),
     1,
     "custom runtime scripts",
   );
-  const commandAnchor =
-    'e.subscriptions.push(De.commands.registerCommand("claude-vscode.newConversation",async()=>{l.notifyCreateNewConversation()}))';
+  const commandPattern =
+    /e\.subscriptions\.push\(([A-Za-z_$][\w$]*)\.commands\.registerCommand\("claude-vscode\.newConversation",async\(\)=>\{l\.notifyCreateNewConversation\(\)\}\)\)/;
+  const commandMatches = [...source.matchAll(new RegExp(commandPattern, "g"))];
+  if (commandMatches.length !== 1) {
+    throw new Error(
+      `right editor group command requires exactly one activation anchor, found ${commandMatches.length}`,
+    );
+  }
+  const commandVscodeBinding = commandMatches[0][1];
+  const commandAnchor = commandMatches[0][0];
   source = replaceExact(
     source,
     commandAnchor,
-    `${commandAnchor},e.subscriptions.push(De.commands.registerCommand("claude-vscode.toggleRightEditorGroup",async()=>{if(De.window.tabGroups.all.length<2)return;await De.commands.executeCommand("workbench.action.toggleMaximizeEditorGroup")}))`,
+    `${commandAnchor},e.subscriptions.push(${commandVscodeBinding}.commands.registerCommand("claude-vscode.toggleRightEditorGroup",async()=>{if(${commandVscodeBinding}.window.tabGroups.all.length<2)return;await ${commandVscodeBinding}.commands.executeCommand("workbench.action.toggleMaximizeEditorGroup")}))`,
     1,
     "right editor group command",
   );
@@ -297,22 +348,34 @@ function patchExtensionBundle() {
 
 function patchWebviewBundle() {
   let source = read("webview/index.js");
-  const copySnippet = fs
-    .readFileSync(path.join(patchRoot, "snippets/copy-markdown.js.txt"), "utf8")
+  source = patchSessionDeletionState(source);
+  const copySnippet = buildCopyMarkdownSnippet(
+    fs
+      .readFileSync(
+        path.join(patchRoot, "snippets/copy-markdown.js.txt"),
+        "utf8",
+      )
+      .trim(),
+  );
+  const answerActionsSnippet = fs
+    .readFileSync(
+      path.join(patchRoot, "snippets/answer-actions.js.txt"),
+      "utf8",
+    )
     .trim();
   source = replacePattern(
     source,
     /}return null}(?=var [A-Za-z_$][\w$]*=[A-Za-z_$][\w$]*\(function\(\{session:t,message:i,index:n,context:o,isHighlighted:r=!1,areThinkingBlocksExpanded:s,setAreThinkingBlocksExpanded:a,status:l\}\))/,
-    `}return null}${copySnippet}`,
+    `}return null}${copySnippet}${answerActionsSnippet}`,
     1,
     "copy Markdown component",
   );
   source = replacePattern(
     source,
     /(i\.uuid&&u&&!i\.isSynthetic&&l!=="progress"&&b\([A-Za-z_$][\w$]*,\{session:t,messageUuid:i\.uuid,surface:"assistant_text",openURL:o\.openURL\},i\.uuid\))\]/,
-    '$1,i.uuid&&u&&!i.isSynthetic&&l!=="progress"&&b(CodexCopyMarkdownButton,{content:i.content},"copy-"+i.uuid)]',
+    '$1,i.uuid&&u&&!i.isSynthetic&&l!=="progress"&&b(CodexAnswerActions,{session:t,message:i,index:n,context:o},"actions-"+i.uuid)]',
     1,
-    "assistant copy button",
+    "assistant copy and fork actions",
   );
   source = replacePattern(
     source,
@@ -334,6 +397,13 @@ function patchWebviewBundle() {
     "plainText:!1",
     1,
     "native user Markdown",
+  );
+  source = replacePattern(
+    source,
+    /(function [A-Za-z_$][\w$]*\(\{session:e,context:t,onCreateNewSession:i,onTeleportCheckout:n\}\)\{)/,
+    '$1ce(()=>{window.__claudeCodexProviderUsageCwd=e.cwd.value,window.ClaudeCodexProviderUsage?.setCwd(e.cwd.value)},[e,e.cwd.value]);',
+    1,
+    "active chat provider cwd",
   );
 
   source = replaceExact(
