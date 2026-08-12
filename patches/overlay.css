@@ -31,14 +31,15 @@
   font-weight: var(--claude-codex-weight-medium);
 }
 
-/* codex-copy-markdown v1: subtle action at the end of each completed response. */
+/* Codex-scale copy actions: compact ghost controls that reveal on message hover. */
 .codexCopyMarkdownButton {
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 4px 0 0;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
   padding: 0;
   color: var(--app-secondary-foreground);
   background: transparent;
@@ -53,8 +54,39 @@
     visibility 0s linear 100ms;
 }
 
+.codexCopyMarkdownButton > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.codexAnswerActions {
+  display: flex;
+  width: fit-content;
+  min-height: 20px;
+  margin-top: 2px;
+  align-items: center;
+  gap: 2px;
+}
+
+.codexAnswerActions .codexCopyMarkdownButton {
+  margin: 0;
+}
+
+/* The vendor copy component is shared by code blocks and a few utility views. */
+.copyButton_CEmTFw {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
+}
+
+.copyIcon_CEmTFw {
+  width: 14px;
+  height: 14px;
+}
+
 [data-testid="assistant-message"]:is(:hover, :focus-within)
-  > .codexCopyMarkdownButton,
+  > .codexAnswerActions .codexCopyMarkdownButton,
 [data-testid="user-message"]:is(:hover, :focus-within)
   > .codexCopyMarkdownButton,
 .codexTableCopyHost:is(:hover, :focus-within) .codexTableCopyButton {
@@ -76,6 +108,10 @@
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 1px;
   opacity: 1;
+}
+
+.codexCopyMarkdownButton:disabled {
+  cursor: wait;
 }
 
 /* Unified fenced code blocks: keep the background on the block, not line fragments. */
@@ -500,17 +536,13 @@
 .codexTableCopyButton {
   position: absolute;
   z-index: 2;
-  top: 4px;
-  right: 4px;
+  top: 3px;
+  right: 3px;
   margin: 0;
-  background: color-mix(
-    in srgb,
-    var(--app-primary-background) 94%,
-    transparent
-  );
-  border: 0.5px solid var(--app-input-border);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
 }
 
 .codexTableCopyButton:focus-visible {
@@ -869,13 +901,12 @@
 }
 
 .codexProgressStatusIcon {
-  --codex-progress: 25%;
   display: inline-grid;
   box-sizing: border-box;
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  color: var(--app-secondary-foreground);
+  color: color-mix(in srgb, var(--app-primary-foreground) 42%, transparent);
   border: 1.25px solid currentColor;
   border-radius: 50%;
   place-items: center;
@@ -885,18 +916,37 @@
 }
 
 .codexProgressStatusIcon[data-status="completed"] {
-  color: color-mix(in srgb, var(--app-secondary-foreground) 70%, transparent);
+  color: color-mix(in srgb, var(--app-primary-foreground) 62%, transparent);
 }
 
-.codexProgressStatusIcon[data-status="in_progress"] {
+.codexProgressStatusIcon[data-variant="step"][data-status="in_progress"] {
   border: 0;
   background: conic-gradient(
-    var(--vscode-focusBorder, var(--vscode-charts-blue, #3794ff))
-      var(--codex-progress),
-    color-mix(in srgb, var(--app-secondary-foreground) 32%, transparent) 0
+    from -90deg,
+    color-mix(in srgb, var(--app-primary-foreground) 88%, transparent) 0 72%,
+    color-mix(in srgb, var(--app-primary-foreground) 24%, transparent) 72% 100%
   );
   -webkit-mask: radial-gradient(circle, transparent 48%, #000 51%);
   mask: radial-gradient(circle, transparent 48%, #000 51%);
+  animation: codexProgressStepSpin 800ms linear infinite;
+}
+
+.codexProgressStatusIcon[data-variant="overall"][data-status="in_progress"] {
+  --codex-progress: 0%;
+  border: 0;
+  background: conic-gradient(
+    from -90deg,
+    var(--vscode-charts-blue, #3794ff) var(--codex-progress),
+    color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 28%, transparent) 0
+  );
+  -webkit-mask: radial-gradient(circle, transparent 48%, #000 51%);
+  mask: radial-gradient(circle, transparent 48%, #000 51%);
+}
+
+@keyframes codexProgressStepSpin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .codexProgressDiffStats {
@@ -1052,6 +1102,10 @@
 @media (prefers-reduced-motion: reduce) {
   .codexProgressPopover {
     transition-duration: 0s;
+  }
+
+  .codexProgressStatusIcon[data-variant="step"][data-status="in_progress"] {
+    animation: none;
   }
 }
 

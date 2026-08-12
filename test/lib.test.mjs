@@ -1,11 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
+  buildCopyMarkdownSnippet,
   compareNumericVersions,
   replaceExact,
   selectMarketplaceVersion,
   shouldQuery,
 } from "../scripts/lib.mjs";
+
+test("provider usage bridge resolves and tracks the active chat cwd", () => {
+  const patcherSource = readFileSync(
+    new URL("../scripts/apply-patches.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(patcherSource.includes("getRuntimeEnvironment:()=>\\$p()"), false);
+  assert.equal(patcherSource.includes("getWorkspaceRoots:"), false);
+  assert.match(patcherSource, /codexCreateProviderUsageModule\(\)/);
+  assert.match(patcherSource, /this\.providerUsage\.trackClient\(t,\{cwd:/);
+  assert.match(
+    patcherSource,
+    /let codexWebview=e\.webview;e\.onDidDispose\(\(\)=>\{this\.providerUsage\.untrackClient\(codexWebview\)/,
+  );
+  assert.match(
+    patcherSource,
+    /ClaudeCodexProviderUsage\?\.setCwd\(e\.cwd\.value\)/,
+  );
+});
+
+test("right editor command discovers its own VS Code binding", () => {
+  const patcherSource = readFileSync(
+    new URL("../scripts/apply-patches.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    patcherSource,
+    /const commandPattern =\s*\/e\\\.subscriptions/,
+  );
+  assert.match(patcherSource, /const commandVscodeBinding = commandMatches\[0\]\[1\]/);
+});
+
+test("copy Markdown success state does not depend on a minified vendor icon", () => {
+  const copySnippet = buildCopyMarkdownSnippet(
+    readFileSync(
+      new URL("../patches/snippets/copy-markdown.js.txt", import.meta.url),
+      "utf8",
+    ),
+  );
+
+  assert.match(copySnippet, /function CodexCopySuccessIcon\(/);
+  assert.match(
+    copySnippet,
+    /children:n\?b\(CodexCopySuccessIcon,\{className:"codexCopyMarkdownIcon"\}\)/,
+  );
+  assert.equal(copySnippet.includes("b(tb,"), false);
+});
 
 test("compareNumericVersions orders extension versions without downgrades", () => {
   assert.equal(compareNumericVersions("2.1.226", "2.1.227"), -1);
