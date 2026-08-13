@@ -5,7 +5,7 @@ import { patchSessionDeletionState } from "../scripts/lib.mjs";
 const nativeDeleteMethod =
   "async deleteSession(e){if(this.sessions.value=this.sessions.value.filter((i)=>i!==e),this.activeSession.value===e){if(this.activeSession.value=this.sessions.value[0],!this.activeSession.value)this.createSession()}let t=e.sessionId.value;if(t)await(await this.getConnection()).deleteSession(t)}";
 const nativeSyntheticMerge =
-  "let o=e.sessions.value,r=i.value,s=to(()=>{let k=new Set(o.map((D)=>D.sessionId.value));return r.filter((D)=>!k.has(D.sessionId)).filter((D)=>D.title||D.state!==\"idle\")";
+  "let r=e.sessions.value,s=i.value,a=Jn(()=>{let R=new Set(r.map((N)=>N.sessionId.value));return s.filter((N)=>!R.has(N.sessionId)).filter((N)=>N.title||N.state!==\"idle\")";
 
 const fixture = [
   "class SessionsStore{",
@@ -64,7 +64,7 @@ test("a hidden open session disappears immediately without waiting for Reload", 
   );
   assert.match(
     patched,
-    /new Set\(\[\.\.\.o\.map\(\(D\)=>D\.sessionId\.value\),\.\.\.e\.locallyDeletedSessionIds\]\)/,
+    /new Set\(\[\.\.\.r\.map\(\(N\)=>N\.sessionId\.value\),\.\.\.e\.locallyDeletedSessionIds\]\)/,
     "the real session-list merge must exclude locally hidden IDs",
   );
   assert.match(

@@ -2,9 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  bindOwnedReactHooks,
   buildCopyMarkdownSnippet,
+  discoverReactHookBindings,
   parseArgs,
   patchSessionDeletionState,
+  patchThinkingDurationState,
   replaceExact,
 } from "./lib.mjs";
 
@@ -197,10 +200,11 @@ function patchExtensionBundle() {
     1,
     "fork session discoverability",
   );
-  source = replaceExact(
+  source = replacePattern(
     source,
-    "$={...T,...D,uuid:E,parentUuid:O,sessionId:s,timestamp:R,sessionKind:void 0}",
-    "$=CodexForkSession.normalizeForkedEntry({...T,...D,uuid:E,parentUuid:O,sessionId:s,timestamp:R,sessionKind:void 0})",
+    /([A-Za-z_$][\w$]*)=\{\.\.\.([A-Za-z_$][\w$]*),\.\.\.([A-Za-z_$][\w$]*),uuid:([A-Za-z_$][\w$]*),parentUuid:([A-Za-z_$][\w$]*),sessionId:([A-Za-z_$][\w$]*),timestamp:([A-Za-z_$][\w$]*),sessionKind:void 0\}/,
+    (_match, entry, original, metadata, uuid, parentUuid, sessionId, timestamp) =>
+      `${entry}=CodexForkSession.normalizeForkedEntry({...${original},...${metadata},uuid:${uuid},parentUuid:${parentUuid},sessionId:${sessionId},timestamp:${timestamp},sessionKind:void 0})`,
     1,
     "fork transcript IDE entrypoint",
   );
@@ -348,21 +352,29 @@ function patchExtensionBundle() {
 
 function patchWebviewBundle() {
   let source = read("webview/index.js");
+  const reactHooks = discoverReactHookBindings(source);
   source = patchSessionDeletionState(source);
-  const copySnippet = buildCopyMarkdownSnippet(
+  source = patchThinkingDurationState(source);
+  const copySnippet = bindOwnedReactHooks(
+    buildCopyMarkdownSnippet(
+      fs
+        .readFileSync(
+          path.join(patchRoot, "snippets/copy-markdown.js.txt"),
+          "utf8",
+        )
+        .trim(),
+    ),
+    reactHooks,
+  );
+  const answerActionsSnippet = bindOwnedReactHooks(
     fs
       .readFileSync(
-        path.join(patchRoot, "snippets/copy-markdown.js.txt"),
+        path.join(patchRoot, "snippets/answer-actions.js.txt"),
         "utf8",
       )
       .trim(),
+    reactHooks,
   );
-  const answerActionsSnippet = fs
-    .readFileSync(
-      path.join(patchRoot, "snippets/answer-actions.js.txt"),
-      "utf8",
-    )
-    .trim();
   source = replacePattern(
     source,
     /}return null}(?=var [A-Za-z_$][\w$]*=[A-Za-z_$][\w$]*\(function\(\{session:t,message:i,index:n,context:o,isHighlighted:r=!1,areThinkingBlocksExpanded:s,setAreThinkingBlocksExpanded:a,status:l\}\))/,
@@ -401,7 +413,7 @@ function patchWebviewBundle() {
   source = replacePattern(
     source,
     /(function [A-Za-z_$][\w$]*\(\{session:e,context:t,onCreateNewSession:i,onTeleportCheckout:n\}\)\{)/,
-    '$1ce(()=>{window.__claudeCodexProviderUsageCwd=e.cwd.value,window.ClaudeCodexProviderUsage?.setCwd(e.cwd.value)},[e,e.cwd.value]);',
+    `$1${reactHooks.useEffect}(()=>{window.__claudeCodexProviderUsageCwd=e.cwd.value,window.ClaudeCodexProviderUsage?.setCwd(e.cwd.value)},[e,e.cwd.value]);`,
     1,
     "active chat provider cwd",
   );

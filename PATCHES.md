@@ -28,6 +28,9 @@ The repository currently adds these personal features to the official extension:
 - Immediate session-list deletion feedback: locally hidden session IDs are excluded from
   both disk-backed sessions and open-editor `sessionStates`, preventing an open tab from
   recreating a deleted row until Reload. Failed host deletes roll the optimistic hide back.
+- Stable completed-thinking durations without changing vendor labels: once the SDK replaces
+  a streaming block with its non-partial final block, the displayed duration is frozen at that
+  final block's timestamp even if a late stream event never supplies an explicit end time.
 - Visible unofficial custom-build identity in the extension list and sidebar titles.
 - Typography and spacing adjustments that remain materially different from vendor defaults.
 

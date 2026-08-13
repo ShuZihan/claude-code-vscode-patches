@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "./lib.mjs";
+import { parseArgs, verifyOwnedReactRuntimeBindings } from "./lib.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -85,6 +85,10 @@ const markerChecks = [
   ["webview/index.js", "ClaudeCodexProviderUsage?.setCwd(e.cwd.value)"],
   ["webview/index.js", "locallyDeletedSessionIds=new Set"],
   ["webview/index.js", "...e.locallyDeletedSessionIds"],
+  [
+    "webview/index.js",
+    "if(!this.partial)return Math.max(0,this.lastModifiedTime-this.startTime)",
+  ],
   ["webview/index.css", "--claude-codex-content-width"],
   ["webview/index.css", ".codexProviderUsageControl"],
   ["webview/index.css", ".codexProgressStatusShell"],
@@ -100,6 +104,11 @@ const extensionSource = fs.readFileSync(
   path.join(extensionRoot, "extension.js"),
   "utf8",
 );
+const webviewSource = fs.readFileSync(
+  path.join(extensionRoot, "webview/index.js"),
+  "utf8",
+);
+verifyOwnedReactRuntimeBindings(webviewSource);
 if (/codexCreateProviderUsageModule\(\{getRuntimeEnvironment:/.test(extensionSource)) {
   throw new Error(
     "extension.js: provider usage bridge must not depend on a minified runtime binding",
