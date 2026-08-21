@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { compareNumericVersions, parseArgs } from "./lib.mjs";
+import {
+  compareNumericVersions,
+  parseArgs,
+  parseReleaseAssetName,
+} from "./lib.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const repository = String(
@@ -16,6 +20,17 @@ const codeCli = String(
       : "code"),
 );
 const dryRun = args.get("dry-run") === true;
+const targetPlatform = String(
+  args.get("target-platform") ||
+    (process.platform === "darwin" && process.arch === "arm64"
+      ? "darwin-arm64"
+      : process.platform === "win32" && process.arch === "x64"
+        ? "win32-x64"
+        : ""),
+);
+if (!targetPlatform) {
+  throw new Error(`unsupported updater platform: ${process.platform}-${process.arch}`);
+}
 const stateFile = path.resolve(
   String(
     args.get("state-file") ||
@@ -42,16 +57,17 @@ function run(command, commandArgs, options = {}) {
 const release = JSON.parse(
   run("gh", ["release", "view", "--repo", repository, "--json", "tagName,assets"]),
 );
-const asset = release.assets?.find((candidate) =>
-  /^claude-code-vscode-custom-[0-9]+\.[0-9]+\.[0-9]+\.vsix$/.test(
-    candidate.name,
-  ),
-);
+const parsedAssets = (release.assets || [])
+  .map((candidate) => ({
+    candidate,
+    identity: parseReleaseAssetName(candidate.name, targetPlatform),
+  }))
+  .filter(({ identity }) => identity);
+const selectedAsset =
+  parsedAssets.find(({ identity }) => !identity.legacy) || parsedAssets[0];
+const asset = selectedAsset?.candidate;
 if (!asset) throw new Error(`release ${release.tagName} has no custom VSIX asset`);
-const latestVersion = asset.name.match(
-  /^claude-code-vscode-custom-([0-9]+\.[0-9]+\.[0-9]+)\.vsix$/,
-)?.[1];
-if (!latestVersion) throw new Error(`cannot parse version from ${asset.name}`);
+const latestVersion = selectedAsset.identity.baseVersion;
 
 const installedLine = run(
   codeCli,

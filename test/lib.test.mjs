@@ -2,8 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  assertCustomVersion,
+  buildAssetName,
+  buildReleaseVersion,
   buildCopyMarkdownSnippet,
   compareNumericVersions,
+  parseReleaseAssetName,
   replaceExact,
   selectMarketplaceVersion,
   shouldQuery,
@@ -63,6 +67,54 @@ test("compareNumericVersions orders extension versions without downgrades", () =
   assert.equal(compareNumericVersions("2.1.227", "2.1.227"), 0);
   assert.equal(compareNumericVersions("2.2.0", "2.1.999"), 1);
   assert.throws(() => compareNumericVersions("2.1", "2.1.227"), /invalid/);
+});
+
+test("custom versions produce stable release and platform asset identities", () => {
+  assert.equal(assertCustomVersion("0.1.0"), "0.1.0");
+  assert.equal(
+    buildReleaseVersion("2.1.238", "0.1.0"),
+    "2.1.238-custom.0.1.0",
+  );
+  assert.equal(
+    buildAssetName("2.1.238", "0.1.0", "darwin-arm64"),
+    "claude-code-vscode-2.1.238-custom.0.1.0-darwin-arm64.vsix",
+  );
+  assert.throws(() => assertCustomVersion("01.0.0"), /invalid custom version/);
+  assert.throws(
+    () => buildAssetName("2.1.238", "0.1.0", "Darwin ARM64"),
+    /invalid target platform/,
+  );
+  assert.deepEqual(
+    parseReleaseAssetName(
+      "claude-code-vscode-2.1.238-custom.0.1.0-darwin-arm64.vsix",
+      "darwin-arm64",
+    ),
+    {
+      baseVersion: "2.1.238",
+      customVersion: "0.1.0",
+      targetPlatform: "darwin-arm64",
+      legacy: false,
+    },
+  );
+  assert.deepEqual(
+    parseReleaseAssetName(
+      "claude-code-vscode-custom-2.1.231.vsix",
+      "darwin-arm64",
+    ),
+    {
+      baseVersion: "2.1.231",
+      customVersion: null,
+      targetPlatform: "darwin-arm64",
+      legacy: true,
+    },
+  );
+  assert.equal(
+    parseReleaseAssetName(
+      "claude-code-vscode-2.1.238-custom.0.1.0-win32-x64.vsix",
+      "darwin-arm64",
+    ),
+    null,
+  );
 });
 
 test("replaceExact refuses missing and ambiguous patch anchors", () => {

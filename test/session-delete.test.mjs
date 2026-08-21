@@ -6,6 +6,8 @@ const nativeDeleteMethod =
   "async deleteSession(e){if(this.sessions.value=this.sessions.value.filter((i)=>i!==e),this.activeSession.value===e){if(this.activeSession.value=this.sessions.value[0],!this.activeSession.value)this.createSession()}let t=e.sessionId.value;if(t)await(await this.getConnection()).deleteSession(t)}";
 const nativeSyntheticMerge =
   "let r=e.sessions.value,s=i.value,a=Jn(()=>{let R=new Set(r.map((N)=>N.sessionId.value));return s.filter((N)=>!R.has(N.sessionId)).filter((N)=>N.title||N.state!==\"idle\")";
+const updatedNativeSyntheticMerge =
+  "let r=e.sessions.value,s=i.value,a=to(()=>{let D=new Set(r.map((W)=>W.sessionId.value));return s.filter((W)=>!D.has(W.sessionId)).filter((W)=>W.title||W.state!==\"idle\")";
 
 const fixture = [
   "class SessionsStore{",
@@ -94,4 +96,17 @@ test("a failed host delete rolls the optimistic hide back", async () => {
   await assert.rejects(store.deleteSession(session), /host delete failed/);
   assert.equal(store.locallyDeletedSessionIds?.has("failed-session"), false);
   assert.deepEqual(store.sessions.value, [session]);
+});
+
+test("session deletion supports the synthetic merge bindings from 2.1.238", () => {
+  const updatedFixture = fixture.replace(
+    nativeSyntheticMerge,
+    updatedNativeSyntheticMerge,
+  );
+  const patched = patchSessionDeletionState(updatedFixture);
+
+  assert.match(
+    patched,
+    /new Set\(\[\.\.\.r\.map\(\(W\)=>W\.sessionId\.value\),\.\.\.e\.locallyDeletedSessionIds\]\)/,
+  );
 });

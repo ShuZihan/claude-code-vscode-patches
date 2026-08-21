@@ -25,4 +25,9 @@ test("dispose callbacks never read WebviewView.webview after VS Code disposes it
     /let codexWebview=e\.webview;e\.onDidDispose\(\(\)=>\{this\.providerUsage\.untrackClient\(codexWebview\)/,
     "the live webview must be captured while the view still exists",
   );
+  assert.match(
+    patcher,
+    /\(if\\\(\)\?o\\\.shutdown/,
+    "the disposal anchor must support the guarded shutdown introduced in 2.1.238",
+  );
 });

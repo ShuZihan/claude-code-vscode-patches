@@ -13,7 +13,7 @@ The repository currently adds these personal features to the official extension:
   vendor's 64 KiB list scan still resume with their complete history. Forked transcript
   entries are also normalized to the `claude-vscode` entrypoint so the vendor does not
   hide them as SDK-generated sessions.
-- VS Code-themed fenced-code highlighting, code-block selection fixes, and compact tables.
+- VS Code-themed fenced-code highlighting with copy-safe source newlines, code-block selection fixes, and compact tables.
 - Right-side editor-group reuse, Markdown preview opening, and a prominent maximize/restore action.
 - Codex-like active-plan progress with checked completed steps, a rotating active-step
   ring, pending-step rings, a proportional blue overall ring, and per-turn changed-file
@@ -36,6 +36,10 @@ The repository currently adds these personal features to the official extension:
 
 Release builds currently target macOS Apple Silicon (`darwin-arm64`) and Windows x64
 (`win32-x64`).
+
+The current custom patch-set version is `custom.0.1.0`. It is combined with the untouched
+official extension version in Release tags and asset names, such as
+`v2.1.238-custom.0.1.0`.
 
 The build does not modify the VS Code application bundle. All runtime changes stay inside the
 `anthropic.claude-code` extension directory.

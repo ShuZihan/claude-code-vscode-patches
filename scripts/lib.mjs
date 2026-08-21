@@ -19,6 +19,23 @@ export function replaceExact(
   return source.split(needle).join(replacement);
 }
 
+export function replacePatternExact(
+  source,
+  pattern,
+  replacement,
+  expectedCount,
+  label,
+) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const matches = [...source.matchAll(new RegExp(pattern.source, flags))];
+  if (matches.length !== expectedCount) {
+    throw new Error(
+      `${label}: expected ${expectedCount} match(es), found ${matches.length}`,
+    );
+  }
+  return source.replace(new RegExp(pattern.source, flags), replacement);
+}
+
 export function buildCopyMarkdownSnippet(source) {
   const successIcon =
     'function CodexCopySuccessIcon(e){return b("svg",{width:16,height:16,viewBox:"0 0 16 16",fill:"none","aria-hidden":!0,...e,children:b("path",{d:"M3.5 8.25 6.5 11l6-6",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"})})}';
@@ -124,10 +141,10 @@ export function patchSessionDeletionState(source) {
     1,
     "session deletion in-flight list guard",
   );
-  return replaceExact(
+  return replacePatternExact(
     patched,
-    "let r=e.sessions.value,s=i.value,a=Jn(()=>{let R=new Set(r.map((N)=>N.sessionId.value));return s.filter((N)=>!R.has(N.sessionId))",
-    "let r=e.sessions.value,s=i.value,a=Jn(()=>{let R=new Set([...r.map((N)=>N.sessionId.value),...e.locallyDeletedSessionIds]);return s.filter((N)=>!R.has(N.sessionId))",
+    /let r=e\.sessions\.value,s=i\.value,a=([A-Za-z_$][\w$]*)\(\(\)=>\{let ([A-Za-z_$][\w$]*)=new Set\(r\.map\(\(([A-Za-z_$][\w$]*)\)=>\3\.sessionId\.value\)\);return s\.filter\(\(([A-Za-z_$][\w$]*)\)=>!\2\.has\(\4\.sessionId\)\)/,
+    "let r=e.sessions.value,s=i.value,a=$1(()=>{let $2=new Set([...r.map(($3)=>$3.sessionId.value),...e.locallyDeletedSessionIds]);return s.filter(($4)=>!$2.has($4.sessionId))",
     1,
     "session deletion synthetic state guard",
   );
@@ -167,6 +184,62 @@ export function compareNumericVersions(left, right) {
     if (leftParts[index] > rightParts[index]) return 1;
   }
   return 0;
+}
+
+export function assertCustomVersion(value) {
+  const version = String(value);
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+    throw new Error(`invalid custom version: ${value}`);
+  }
+  return version;
+}
+
+export function buildReleaseVersion(baseVersion, customVersion) {
+  compareNumericVersions(baseVersion, baseVersion);
+  return `${baseVersion}-custom.${assertCustomVersion(customVersion)}`;
+}
+
+export function buildAssetName(baseVersion, customVersion, targetPlatform) {
+  const releaseVersion = buildReleaseVersion(baseVersion, customVersion);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(targetPlatform))) {
+    throw new Error(`invalid target platform: ${targetPlatform}`);
+  }
+  return `claude-code-vscode-${releaseVersion}-${targetPlatform}.vsix`;
+}
+
+export function parseReleaseAssetName(name, targetPlatform) {
+  const escapedPlatform = String(targetPlatform).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const current = String(name).match(
+    new RegExp(
+      `^claude-code-vscode-(\\d+\\.\\d+\\.\\d+)-custom\\.(\\d+\\.\\d+\\.\\d+)-${escapedPlatform}\\.vsix$`,
+    ),
+  );
+  if (current) {
+    return {
+      baseVersion: current[1],
+      customVersion: current[2],
+      targetPlatform: String(targetPlatform),
+      legacy: false,
+    };
+  }
+
+  const legacySuffix = targetPlatform === "darwin-arm64" ? "" : `-${targetPlatform}`;
+  const escapedSuffix = legacySuffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const legacy = String(name).match(
+    new RegExp(
+      `^claude-code-vscode-custom-(\\d+\\.\\d+\\.\\d+)${escapedSuffix}\\.vsix$`,
+    ),
+  );
+  if (!legacy) return null;
+  return {
+    baseVersion: legacy[1],
+    customVersion: null,
+    targetPlatform: String(targetPlatform),
+    legacy: true,
+  };
 }
 
 export function selectMarketplaceVersion(payload, targetPlatform) {

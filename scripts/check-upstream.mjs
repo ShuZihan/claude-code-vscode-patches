@@ -118,7 +118,7 @@ fs.writeFileSync(
 
 emit("due", "true");
 emit("version", selectedVersion);
-emit("custom_revision", manifest.customRevision);
+emit("custom_version", manifest.customVersion);
 for (const selected of selectedPlatforms) {
   emit(
     `download_url_${selected.targetPlatform.replaceAll("-", "_")}`,

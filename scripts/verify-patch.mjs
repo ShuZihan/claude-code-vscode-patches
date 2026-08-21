@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseArgs, verifyOwnedReactRuntimeBindings } from "./lib.mjs";
+import {
+  buildReleaseVersion,
+  parseArgs,
+  verifyOwnedReactRuntimeBindings,
+} from "./lib.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -55,9 +59,13 @@ if (expectedVersion && packageJson.version !== expectedVersion) {
 }
 if (
   packageJson.displayName !== "Claude Code for VS Code (Custom)" ||
+  packageJson.description !==
+    `Unofficial custom build custom.${patchManifest.customVersion}, based on Claude Code ${packageJson.version}.` ||
   packageJson.claudeCodeCustomBuild?.unofficial !== true ||
   packageJson.claudeCodeCustomBuild?.baseVersion !== packageJson.version ||
-  packageJson.claudeCodeCustomBuild?.revision !== patchManifest.customRevision
+  packageJson.claudeCodeCustomBuild?.version !== patchManifest.customVersion ||
+  packageJson.claudeCodeCustomBuild?.releaseVersion !==
+    buildReleaseVersion(packageJson.version, patchManifest.customVersion)
 ) {
   throw new Error("custom build identity is missing or inconsistent");
 }

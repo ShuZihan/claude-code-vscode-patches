@@ -5,13 +5,16 @@ import { execFileSync } from "node:child_process";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "./lib.mjs";
+import { buildAssetName, parseArgs } from "./lib.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
 const args = parseArgs(process.argv.slice(2));
+const patchManifest = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "patches/manifest.json"), "utf8"),
+);
 const expectedVersion = args.get("version");
 const sourceVsix = args.get("vsix");
 const downloadUrl = args.get("download-url");
@@ -98,9 +101,13 @@ try {
   fs.mkdirSync(outputDirectory, { recursive: true });
   const outputPath = path.join(
     outputDirectory,
-    `claude-code-vscode-custom-${packageJson.version}${
-      assetSuffix ? `-${assetSuffix}` : ""
-    }.vsix`,
+    assetSuffix
+      ? buildAssetName(
+          packageJson.version,
+          patchManifest.customVersion,
+          String(assetSuffix),
+        )
+      : `claude-code-vscode-${packageJson.version}-custom.${patchManifest.customVersion}.vsix`,
   );
   fs.rmSync(outputPath, { force: true });
   execFileSync("zip", ["-qry", outputPath, "."], {
@@ -113,7 +120,7 @@ try {
   if (githubOutput) {
     fs.appendFileSync(
       githubOutput,
-      `asset_path=${outputPath}\nversion=${packageJson.version}\n`,
+      `asset_path=${outputPath}\nversion=${packageJson.version}\ncustom_version=${patchManifest.customVersion}\n`,
     );
   }
   process.stdout.write(`Built ${outputPath}\n`);

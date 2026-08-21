@@ -23,11 +23,14 @@ Requirements: Node.js 20 or newer, `unzip`, and `zip`.
 npm test
 node scripts/build.mjs \
   --vsix /path/to/official-darwin-arm64.vsix \
-  --version 2.1.226
+  --version 2.1.238 \
+  --asset-suffix darwin-arm64
 ```
 
-The default result is written to `dist/claude-code-vscode-custom-<version>.vsix`. Pass
-`--asset-suffix win32-x64` when packaging the Windows asset.
+Release builds use
+`claude-code-vscode-<official-version>-custom.<custom-version>-<platform>.vsix`.
+Pass `--asset-suffix darwin-arm64` or `--asset-suffix win32-x64` when packaging.
+Without a suffix, the script writes a platform-neutral local artifact.
 
 The patcher uses exact match counts for every minified-bundle anchor. Missing or ambiguous anchors
 fail the build before packaging. `scripts/verify-patch.mjs` then checks package identity, required
@@ -43,7 +46,7 @@ When a version has no matching custom Release, the workflow:
 
 1. Downloads the official `darwin-arm64` and `win32-x64` VSIX packages.
 2. Applies and verifies the patches independently on both packages.
-3. Publishes `v<version>-custom.<revision>` with both custom VSIX assets.
+3. Publishes `v<official-version>-custom.<custom-version>` with both custom VSIX assets.
 4. Opens one GitHub issue if an upstream change breaks a compatibility anchor.
 
 Manual workflow runs bypass the 48-hour gate.
@@ -54,7 +57,7 @@ Install a Release asset with VS Code's **Extensions: Install from VSIX** command
 Code CLI:
 
 ```bash
-code --install-extension claude-code-vscode-custom-<version>.vsix --force
+code --install-extension claude-code-vscode-<official-version>-custom.<custom-version>-<platform>.vsix --force
 ```
 
 VS Code disables automatic updates by default for extensions installed from VSIX. GitHub Releases
@@ -69,6 +72,19 @@ node scripts/update-installed.mjs
 For unattended updates, schedule that command locally after the repository is cloned. Do not
 re-enable Marketplace auto-update for this extension, because it would replace the custom build
 with the official package.
+
+## Versioning
+
+Official and custom versions are tracked independently. The extension's numeric
+`package.json.version` remains the official version so VS Code can compare it correctly. Releases,
+assets, and custom-build metadata combine it with this repository's SemVer, for example
+`2.1.238-custom.0.1.0`.
+
+- Custom major: incompatible custom architecture, configuration, data, or updater changes.
+- Custom minor: a new user-visible custom feature.
+- Custom patch: a custom bug fix, style correction, or upstream compatibility adjustment.
+
+The current custom feature set starts at `custom.0.1.0`.
 
 On this Mac, the included LaunchAgent template runs the updater once when loaded and then every
 172800 seconds (48 hours). It records the installed Release tag and asset digest, verifies the

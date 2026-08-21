@@ -61,10 +61,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.upstream.outputs.version }}
-          CUSTOM_REVISION: ${{ steps.upstream.outputs.custom_revision }}
+          CUSTOM_VERSION: ${{ steps.upstream.outputs.custom_version }}
         shell: bash
         run: |
-          if gh release view "v${VERSION}-custom.${CUSTOM_REVISION}" >/dev/null 2>&1; then
+          if gh release view "v${VERSION}-custom.${CUSTOM_VERSION}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -80,6 +80,7 @@ jobs:
           node scripts/build.mjs
           --download-url "$DOWNLOAD_URL"
           --version "$VERSION"
+          --asset-suffix darwin-arm64
 
       - name: Build the patched Windows x64 VSIX
         if: steps.upstream.outputs.due == 'true' && steps.release.outputs.exists == 'false'
@@ -98,13 +99,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.build_mac.outputs.version }}
-          CUSTOM_REVISION: ${{ steps.upstream.outputs.custom_revision }}
+          CUSTOM_VERSION: ${{ steps.upstream.outputs.custom_version }}
           MAC_ASSET_PATH: ${{ steps.build_mac.outputs.asset_path }}
           WINDOWS_ASSET_PATH: ${{ steps.build_windows.outputs.asset_path }}
         shell: bash
         run: |
-          gh release create "v${VERSION}-custom.${CUSTOM_REVISION}" "$MAC_ASSET_PATH" "$WINDOWS_ASSET_PATH" \
-            --title "Claude Code ${VERSION} custom.${CUSTOM_REVISION}" \
+          gh release create "v${VERSION}-custom.${CUSTOM_VERSION}" "$MAC_ASSET_PATH" "$WINDOWS_ASSET_PATH" \
+            --title "Claude Code ${VERSION} custom.${CUSTOM_VERSION}" \
             --notes "Unofficial personal builds generated from the official ${VERSION} darwin-arm64 and win32-x64 VSIX packages. The extension UI identifies itself as a custom build."
 
       - name: Open one adaptation issue when patching fails

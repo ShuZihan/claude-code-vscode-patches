@@ -345,6 +345,18 @@
     }, 50);
   }
 
+  function restoreHighlightedCodeNewlines(code, source) {
+    let remainingNewlines = (source.match(/\n/g) || []).length;
+    for (const lineBreak of code.querySelectorAll("br")) {
+      if (remainingNewlines > 0) {
+        lineBreak.replaceWith(document.createTextNode("\n"));
+        remainingNewlines -= 1;
+      } else {
+        lineBreak.remove();
+      }
+    }
+  }
+
   async function enhanceCodeBlock(code) {
     if (!(code instanceof HTMLElement) || code.parentElement?.tagName !== "PRE") return;
     const tokenSelector = 'span[class^="mtk"], span[class*=" mtk"]';
@@ -380,6 +392,7 @@
         mimeType: code.dataset.lang,
         tabSize: 4,
       });
+      restoreHighlightedCodeNewlines(code, source);
       decorateSemanticFunctions(code, source, code.dataset.lang);
       code.dataset.codexHighlightedSource = source;
       code.classList.add("codexMonacoHighlighted");

@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   bindOwnedReactHooks,
+  buildReleaseVersion,
   buildCopyMarkdownSnippet,
   discoverReactHookBindings,
   parseArgs,
@@ -70,13 +71,18 @@ function patchPackageJson() {
   ) {
     throw new Error("package.json: official display name or description changed");
   }
+  const releaseVersion = buildReleaseVersion(
+    packageJson.version,
+    patchManifest.customVersion,
+  );
   packageJson.displayName = "Claude Code for VS Code (Custom)";
   packageJson.description =
-    `Unofficial custom build custom.${patchManifest.customRevision}, based on Claude Code ${packageJson.version}. ${packageJson.description}`;
+    `Unofficial custom build custom.${patchManifest.customVersion}, based on Claude Code ${packageJson.version}.`;
   packageJson.claudeCodeCustomBuild = {
     unofficial: true,
     baseVersion: packageJson.version,
-    revision: patchManifest.customRevision,
+    version: patchManifest.customVersion,
+    releaseVersion,
     repository: "ShuZihan/claude-code-vscode-patches",
   };
 
@@ -251,10 +257,10 @@ function patchExtensionBundle() {
     1,
     "editor provider bridge",
   );
-  source = replaceExact(
+  source = replacePattern(
     source,
-    ",e.onDidDispose(()=>{o.shutdown(),this.allComms.delete(o),this.webviews.delete(s),this.updateSidebarActiveState()",
-    ";let codexWebview=e.webview;e.onDidDispose(()=>{this.providerUsage.untrackClient(codexWebview),o.shutdown(),this.allComms.delete(o),this.webviews.delete(s),this.updateSidebarActiveState()",
+    /,e\.onDidDispose\(\(\)=>\{(if\()?o\.shutdown\(\)/,
+    ";let codexWebview=e.webview;e.onDidDispose(()=>{this.providerUsage.untrackClient(codexWebview);$1o.shutdown()",
     2,
     "sidebar provider disposal",
   );
