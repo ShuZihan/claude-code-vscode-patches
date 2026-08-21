@@ -24,9 +24,11 @@ const targetPlatform = String(
   args.get("target-platform") ||
     (process.platform === "darwin" && process.arch === "arm64"
       ? "darwin-arm64"
-      : process.platform === "win32" && process.arch === "x64"
-        ? "win32-x64"
-        : ""),
+      : process.platform === "darwin" && process.arch === "x64"
+        ? "darwin-x64"
+        : process.platform === "win32" && process.arch === "x64"
+          ? "win32-x64"
+          : ""),
 );
 if (!targetPlatform) {
   throw new Error(`unsupported updater platform: ${process.platform}-${process.arch}`);

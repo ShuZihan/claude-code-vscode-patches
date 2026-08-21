@@ -94,19 +94,32 @@ jobs:
           --version "$VERSION"
           --asset-suffix win32-x64
 
+      - name: Build the patched macOS Intel VSIX
+        if: steps.upstream.outputs.due == 'true' && steps.release.outputs.exists == 'false'
+        id: build_mac_intel
+        env:
+          VERSION: ${{ steps.upstream.outputs.version }}
+          DOWNLOAD_URL: ${{ steps.upstream.outputs.download_url_darwin_x64 }}
+        run: >-
+          node scripts/build.mjs
+          --download-url "$DOWNLOAD_URL"
+          --version "$VERSION"
+          --asset-suffix darwin-x64
+
       - name: Publish the custom release
-        if: steps.build_mac.outcome == 'success' && steps.build_windows.outcome == 'success'
+        if: steps.build_mac.outcome == 'success' && steps.build_mac_intel.outcome == 'success' && steps.build_windows.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.build_mac.outputs.version }}
           CUSTOM_VERSION: ${{ steps.upstream.outputs.custom_version }}
           MAC_ASSET_PATH: ${{ steps.build_mac.outputs.asset_path }}
+          MAC_INTEL_ASSET_PATH: ${{ steps.build_mac_intel.outputs.asset_path }}
           WINDOWS_ASSET_PATH: ${{ steps.build_windows.outputs.asset_path }}
         shell: bash
         run: |
-          gh release create "v${VERSION}-custom.${CUSTOM_VERSION}" "$MAC_ASSET_PATH" "$WINDOWS_ASSET_PATH" \
+          gh release create "v${VERSION}-custom.${CUSTOM_VERSION}" "$MAC_ASSET_PATH" "$MAC_INTEL_ASSET_PATH" "$WINDOWS_ASSET_PATH" \
             --title "Claude Code ${VERSION} custom.${CUSTOM_VERSION}" \
-            --notes "Unofficial personal builds generated from the official ${VERSION} darwin-arm64 and win32-x64 VSIX packages. The extension UI identifies itself as a custom build."
+            --notes "Unofficial personal builds generated from the official ${VERSION} darwin-arm64, darwin-x64, and win32-x64 VSIX packages. The extension UI identifies itself as a custom build."
 
       - name: Open one adaptation issue when patching fails
         if: failure() && steps.upstream.outputs.version != ''

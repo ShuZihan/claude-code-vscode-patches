@@ -6,11 +6,13 @@
   "customVersion": "0.1.0",
   "targetPlatforms": [
     "darwin-arm64",
+    "darwin-x64",
     "win32-x64"
   ],
   "checkIntervalHours": 48,
   "releaseAssets": {
     "darwin-arm64": "claude-code-vscode-<version>-custom.<customVersion>-darwin-arm64.vsix",
+    "darwin-x64": "claude-code-vscode-<version>-custom.<customVersion>-darwin-x64.vsix",
     "win32-x64": "claude-code-vscode-<version>-custom.<customVersion>-win32-x64.vsix"
   }
 }

@@ -5,7 +5,7 @@
 
 This repository downloads the official `anthropic.claude-code` VSIX packages, applies a
 deterministic set of personal UI and workflow patches, verifies the results, and publishes private
-GitHub Release assets for macOS Apple Silicon and Windows x64.
+GitHub Release assets for macOS Apple Silicon, macOS Intel, and Windows x64.
 
 No official VSIX, Anthropic executable, API key, account data, or VS Code application file is
 committed to the repository.
@@ -29,7 +29,8 @@ node scripts/build.mjs \
 
 Release builds use
 `claude-code-vscode-<official-version>-custom.<custom-version>-<platform>.vsix`.
-Pass `--asset-suffix darwin-arm64` or `--asset-suffix win32-x64` when packaging.
+Pass `--asset-suffix darwin-arm64`, `--asset-suffix darwin-x64`, or
+`--asset-suffix win32-x64` when packaging.
 Without a suffix, the script writes a platform-neutral local artifact.
 
 The patcher uses exact match counts for every minified-bundle anchor. Missing or ambiguous anchors
@@ -44,9 +45,9 @@ month-boundary behavior of day-of-month cron expressions.
 
 When a version has no matching custom Release, the workflow:
 
-1. Downloads the official `darwin-arm64` and `win32-x64` VSIX packages.
-2. Applies and verifies the patches independently on both packages.
-3. Publishes `v<official-version>-custom.<custom-version>` with both custom VSIX assets.
+1. Downloads the official `darwin-arm64`, `darwin-x64`, and `win32-x64` VSIX packages.
+2. Applies and verifies the patches independently on all three packages.
+3. Publishes `v<official-version>-custom.<custom-version>` with all three custom VSIX assets.
 4. Opens one GitHub issue if an upstream change breaks a compatibility anchor.
 
 Manual workflow runs bypass the 48-hour gate.

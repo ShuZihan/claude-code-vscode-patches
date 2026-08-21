@@ -34,8 +34,8 @@ The repository currently adds these personal features to the official extension:
 - Visible unofficial custom-build identity in the extension list and sidebar titles.
 - Typography and spacing adjustments that remain materially different from vendor defaults.
 
-Release builds currently target macOS Apple Silicon (`darwin-arm64`) and Windows x64
-(`win32-x64`).
+Release builds currently target macOS Apple Silicon (`darwin-arm64`), macOS Intel
+(`darwin-x64`), and Windows x64 (`win32-x64`).
 
 The current custom patch-set version is `custom.0.1.0`. It is combined with the untouched
 official extension version in Release tags and asset names, such as

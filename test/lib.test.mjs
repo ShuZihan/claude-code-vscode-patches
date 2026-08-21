@@ -115,6 +115,46 @@ test("custom versions produce stable release and platform asset identities", () 
     ),
     null,
   );
+  assert.deepEqual(
+    parseReleaseAssetName(
+      "claude-code-vscode-2.1.238-custom.0.1.0-darwin-x64.vsix",
+      "darwin-x64",
+    ),
+    {
+      baseVersion: "2.1.238",
+      customVersion: "0.1.0",
+      targetPlatform: "darwin-x64",
+      legacy: false,
+    },
+  );
+});
+
+test("release automation and updater cover both Mac architectures and Windows x64", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../patches/manifest.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(manifest.targetPlatforms, [
+    "darwin-arm64",
+    "darwin-x64",
+    "win32-x64",
+  ]);
+
+  const updaterSource = readFileSync(
+    new URL("../scripts/update-installed.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    updaterSource,
+    /process\.platform === "darwin" && process\.arch === "x64"[\s\S]*?"darwin-x64"/,
+  );
+
+  const workflowSource = readFileSync(
+    new URL("../.github/workflows/check-upstream.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(workflowSource, /download_url_darwin_x64/);
+  assert.match(workflowSource, /--asset-suffix darwin-x64/);
+  assert.match(workflowSource, /MAC_INTEL_ASSET_PATH/);
 });
 
 test("replaceExact refuses missing and ambiguous patch anchors", () => {
